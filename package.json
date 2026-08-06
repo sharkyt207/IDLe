@@ -1,0 +1,18 @@
+{
+  "name": "scrap-empire",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Scrap Empire - Idle/Tycoon Prototyp (GDD Kapitel 1 & 2)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "typecheck": "tsc --noEmit",
+    "simulate": "node scripts/simulate.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.7"
+  }
+}
