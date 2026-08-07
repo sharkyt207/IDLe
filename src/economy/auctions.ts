@@ -107,6 +107,7 @@ export function tickAuctions(game: Game, dt: number): void {
 
   const lot = Content.auctionLot(auction.lotId);
   if (auction.playerLeads && lot && game.spendMoney(auction.bid)) {
+    game.state.progressStats.auctionsWon++;
     awardLot(game, lot);
     game.bus.emit('notice', {
       text: `Zuschlag: ${lot.name} für ${Math.round(auction.bid).toLocaleString('de-DE')} €`,

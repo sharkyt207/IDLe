@@ -4,9 +4,10 @@ import { t } from '../core/i18n';
 import type { Game } from '../game/game';
 import { xpForLevel } from '../game/state';
 import { progressOf } from '../economy/contracts';
+import { rows as missionRows } from '../missions/manager';
 import { needsService } from '../game/systems/maintenance';
 import { clear, el } from './dom';
-import { statusIndicator, tooltip } from './components';
+import { attachPress, statusIndicator, tooltip } from './components';
 
 /**
  * The HUD (GDD chapter 8).
@@ -23,6 +24,18 @@ export class Hud {
   readonly top = el('header', 'topbar');
   readonly left = el('aside', 'rail rail-left');
   readonly right = el('aside', 'rail rail-right');
+  /**
+   * Host for the mission task list (GDD chapter 10: "links oben"). It sits
+   * above the running-work rows and is owned by `TaskList`, which rebuilds it
+   * on its own schedule - so `refreshLeft` must never clear the whole rail.
+   */
+  readonly taskHost = el('div', 'rail-tasks');
+  private rows = el('div', 'rail-rows');
+  /** Set by the shell so the task chip can open the mission list. */
+  onNavigate?: (id: string) => void;
+
+  /** Last measured top-bar height, published as `--hud-top`. */
+  private topHeight = 0;
 
   private money = el('div', 'money');
   private rate = el('div', 'rate');
@@ -61,6 +74,9 @@ export class Hud {
 
     tooltip(this.top, () => this.summary());
     this.lastEarned = game.state.lifetimeEarned;
+
+    this.left.appendChild(this.taskHost);
+    this.left.appendChild(this.rows);
   }
 
   /** Feeds the income average. Called every frame by the shell. */
@@ -76,12 +92,32 @@ export class Hud {
   refresh(): void {
     const { state, stats } = this.game;
 
+    // The rails float over the screen area, so they need to know where it
+    // starts. The top bar's height is not constant - chips come and go with
+    // research, prestige and open missions - so it is measured rather than
+    // guessed at in the stylesheet.
+    const height = Math.round(this.top.getBoundingClientRect().height);
+    if (height > 0 && height !== this.topHeight) {
+      this.topHeight = height;
+      document.documentElement.style.setProperty('--hud-top', `${height}px`);
+    }
+
     this.money.textContent = money(state.money);
     this.level.textContent = `Lv ${state.level}`;
     this.rate.textContent = `${money(this.incomeEma)}/s`;
     this.xpFill.style.width = `${Math.min(100, (state.xp / xpForLevel(state.level)) * 100)}%`;
 
     clear(this.resources);
+    // The task list itself only lives over the isometric view; the count comes
+    // along everywhere as a chip, because the top bar is a reserved band and a
+    // floating panel on a list screen covers the content it should complement.
+    const open = missionRows(this.game).length;
+    if (open > 0) {
+      const tasks = chip('🎯', String(open), t('tasks.title'));
+      tasks.classList.add('tappable');
+      attachPress(tasks, () => this.onNavigate?.('missions'));
+      this.resources.appendChild(tasks);
+    }
     this.resources.appendChild(chip('🏢', money(this.game.companyValue()), t('hud.companyValue')));
     if (state.prestige.points > 0 || state.prestige.runs > 0) {
       this.resources.appendChild(chip('🏆', fmt(state.prestige.points, 0), t('hud.prestigePoints')));
@@ -139,9 +175,13 @@ export class Hud {
       rows.push(railRow('🤖', t('hud.automationRunning'), `${fmt(stats.teardownRate)}/s`));
     }
 
-    clear(this.left);
-    for (const row of rows.slice(0, 4)) this.left.appendChild(row);
-    this.left.style.display = rows.length ? '' : 'none';
+    // The task list has its own lifetime above these rows, so only the rows
+    // are replaced. With three tasks on screen there is room for two.
+    const limit = this.taskHost.childElementCount > 0 ? 2 : 4;
+    clear(this.rows);
+    for (const row of rows.slice(0, limit)) this.rows.appendChild(row);
+    this.rows.style.display = rows.length ? '' : 'none';
+    this.left.style.display = rows.length || this.taskHost.childElementCount > 0 ? '' : 'none';
   }
 
   /** Right rail: standing warnings. Toasts handle the transient ones. */

@@ -64,6 +64,12 @@ const {
   canBuyPerk,
   buyPerk,
   difficultyFactor,
+  missionRows,
+  visibleRows,
+  milestoneRows,
+  helpCoverage,
+  VISIBLE_TASKS,
+  TUTORIAL_MISSION_IDS,
 } = await import(resolve(outDir, 'sim.mjs'));
 
 const minutes = Number(process.argv[2] ?? 30);
@@ -74,14 +80,30 @@ const TAPS_PER_SECOND = 3;
 const IDLE_AFTER_RATE = 25;
 
 const game = new Game();
-game.state.tutorial = { step: 5, done: true, choiceOffered: true };
+// The bot plays the opening for real (GDD chapter 10) rather than skipping it:
+// the five tutorial missions gate every other mission, so a run that starts
+// past them would never test the one sequence every player sees.
 
 const events = [];
+/** Chapter 10: what the guidance layer actually did during the run. */
+const missionsDone = [];
+const milestonesReached = [];
+let taskListPeak = 0;
 /** Simulated seconds since start - survives a prestige reset. */
 let clock = 0;
 let lastLevel = 1;
 let purchasesInFirstTen = 0;
 const seen = new Set();
+
+game.bus.on('missionDone', ({ id }) => {
+  missionsDone.push(id);
+  events.push([clock, `Mission erfüllt: ${Content.mission(id)?.name ?? id}`]);
+});
+
+game.bus.on('milestone', ({ id }) => {
+  milestonesReached.push(id);
+  events.push([clock, `Meilenstein: ${Content.milestone(id)?.name ?? id}`]);
+});
 
 game.bus.on('levelUp', ({ level }) => {
   if (level > lastLevel) {
@@ -362,6 +384,7 @@ for (let step = 0; step < totalSteps; step++) {
     watchStaff();
     watchAchievements();
     watchResearch();
+    taskListPeak = Math.max(taskListPeak, visibleRows(game).length);
     spendPoints();
     choosePriority();
     invest();
@@ -465,6 +488,16 @@ for (const lot of lotsWithRoad) {
 console.log('  Straßennetz        ', roads.nodes.length, 'Knoten ·', roads.edges.length, 'Kanten ·',
   reachable, '/', lotsWithRoad.length, 'Grundstücke angebunden');
 
+// --- Kapitel 10: Missionen, Meilensteine, Hilfesystem ----------------------
+const openMissions = missionRows(game);
+const tutorialDone = TUTORIAL_MISSION_IDS.filter((id) => game.state.missions.done.includes(id));
+const help = helpCoverage(game);
+console.log('  Missionen erfüllt  ', missionsDone.length, '· offen', openMissions.length,
+  '· Aufgabenliste max', taskListPeak, '/', VISIBLE_TASKS);
+console.log('  Einführung         ', tutorialDone.length, '/', TUTORIAL_MISSION_IDS.length, 'Schritte');
+console.log('  Meilensteine       ', milestonesReached.length, '/', milestoneRows(game).length);
+console.log('  Lexikon            ', help.known, '/', help.total, 'Einträge entdeckt');
+
 console.log('\nGDD-Prüfungen:');
 check('Erste 10 Minuten: mindestens 5 Entscheidungen', purchasesInFirstTen >= 5, `${purchasesInFirstTen} Käufe`);
 check('Erste 30 Min ohne Stillstand > 5 Min', longestGap <= 300, `längste Pause ${fmtTime(longestGap)}`);
@@ -500,6 +533,16 @@ check(
   earnedAchievements.length >= (minutes < 60 ? 2 : 5),
   `${earnedAchievements.length} Erfolge`,
 );
+// Chapter 10: guidance has to work without the player asking for it.
+check('Einführung abgeschlossen', tutorialDone.length === TUTORIAL_MISSION_IDS.length,
+  `${tutorialDone.length}/${TUTORIAL_MISSION_IDS.length} Schritte`);
+check('Missionen laufen durch', missionsDone.length >= (minutes < 60 ? 4 : 10),
+  `${missionsDone.length} erfüllt`);
+check('Immer eine offene Aufgabe', openMissions.length >= 1, `${openMissions.length} offen`);
+check('Aufgabenliste bleibt bei höchstens drei', taskListPeak <= VISIBLE_TASKS,
+  `${taskListPeak} gleichzeitig`);
+check('Meilensteine greifen', milestonesReached.length >= 1, `${milestonesReached.length} erreicht`);
+check('Lexikon füllt sich', help.known >= 10, `${help.known} von ${help.total} Einträgen`);
 check(
   'Prestige erreichbar',
   minutes < 90 || game.state.prestige.runs >= 1 || canPrestige(game),

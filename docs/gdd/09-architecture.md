@@ -29,7 +29,8 @@ die ein TypeScript/Vite-Projekt braucht:
 | `Systems/Buildings` | `src/world/buildings.ts` | |
 | `Systems/Logistics` | `src/world/roads.ts`, `traffic.ts`, `logistics.ts` | |
 | `Systems/Employees` | `src/company/payroll.ts` | |
-| `Systems/Research/Prestige/Achievements` | `src/progress/` | plus Unlock- und Bonus-Manager |
+| `Systems/Research/Prestige/Achievements` | `src/progress/` | plus Unlock-, Bonus- und Progress-Tracker |
+| `Systems/Missions` | `src/missions/` | Missionen, Meilensteine, Hinweise, Lexikon (Kapitel 10) |
 | `Systems/Statistics` | `src/company/statistics.ts` | |
 | `Systems/Audio` | `src/audio/sound.ts` | |
 | `UI/HUD` | `src/ui/hud.ts` | |
@@ -75,6 +76,12 @@ seine Wirkung mit denselben Datensätzen, und `stats.ts` faltet sie zu einem Obj
 | Unlock | `src/progress/unlocks.ts` |
 | Save | `src/game/save.ts` |
 | Event | `src/game/systems/events.ts` |
+| Mission | `src/missions/manager.ts` |
+| Daily Mission Generator | `src/missions/daily.ts` |
+| Milestone | `src/missions/milestones.ts` |
+| Hint & Mentor | `src/missions/hints.ts` |
+| Help & Encyclopedia | `src/missions/help.ts` |
+| Progress Tracker | `src/progress/tracker.ts` |
 | Audio | `src/audio/sound.ts` |
 | Statistics | `src/company/statistics.ts` |
 
@@ -107,7 +114,10 @@ und den kompletten Zustand fünfmal hintereinander zu serialisieren wäre reine 
 
 Beim Laden wird jeder Speicherstand **saniert**: unbekannte Inhalte fliegen raus, fehlende
 Felder bekommen Defaults, Mengen werden geklemmt. Ein beschädigter Stand wird beiseitegelegt
-statt den Start zu blockieren. Vier Migrationen sind bisher nötig gewesen (Kapitel 7, 8 und 9).
+statt den Start zu blockieren. Fünf Migrationen sind bisher nötig gewesen (Kapitel 7, 8, 9 und
+10). Die letzte schreibt einem Altbestand die fünf Einführungsmissionen gut, zahlt sie aber
+nicht aus - sie waren längst verdient, und einem Spätspiel-Hof 250 € zu schenken sähe nur nach
+einem Fehler aus.
 
 ---
 
@@ -146,7 +156,7 @@ das Spiel lügt, ist schlimmer als keines.
 
 Zwei Arten von Text, absichtlich unterschiedlich behandelt:
 
-1. **Oberflächentext** ist von Anfang an ein Schlüssel: `t('nav.market')`. 237 Schlüssel,
+1. **Oberflächentext** ist von Anfang an ein Schlüssel: `t('nav.market')`. 279 Schlüssel,
    Deutsch als Quelle, Englisch vollständig, sechs weitere Sprachen registriert und leer.
    Fehlt ein Schlüssel, erscheint Deutsch statt einer Lücke.
 2. **Inhaltstext** (Namen und Beschreibungen von 300+ Maschinen, Fahrzeugen, Materialien) lebt
@@ -166,8 +176,8 @@ die Reibung, die dieses Kapitel vermeiden will.
 ```bash
 npm run typecheck   # TypeScript strict
 npm run build       # Produktionsbuild
-npm run simulate    # 20 GDD-Prüfungen, headless
-npm test            # 8 Browser-Suiten in echtem Chromium
+npm run simulate    # 26 GDD-Prüfungen, headless
+npm test            # 10 Browser-Suiten in echtem Chromium
 npm run i18n        # Übersetzungsstand
 npm run check       # typecheck + simulate + test
 ```

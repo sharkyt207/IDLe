@@ -63,6 +63,15 @@ src/
     achievements.ts Achievement Manager: Metriken, Titel, Belohnungen
     bonuses.ts     Permanent Bonus System: alles dauerhaft Besessene
     unlocks.ts     Unlock Manager: eine Stelle für jede Freischaltbedingung
+    tracker.ts     Progress Tracker: eine Stelle für "wie hoch ist X gerade"
+
+  missions/      Spielerführung (GDD Kapitel 10)
+    manager.ts     Mission Manager: anbieten, messen, abschließen
+    daily.ts       Daily Mission Generator: kalendergesteuert, datumsinitialisiert
+    milestones.ts  Milestone Manager: Firmenwert-Schwellen, einer pro Prüfung
+    rewards.ts     Belohnungen: Deskriptor → Auszahlung, gedeckelt in Lieferungen
+    hints.ts       Hint Manager & Mentor: einmal je Hinweis, abschaltbar
+    help.ts        Lexikon: Einträge aus laufenden Inhalten, entdeckungsgesteuert
 
   world/         Spielwelt (GDD Kapitel 3), unabhängig austauschbare Module
     iso.ts         Isometrische Projektion (64:36 ≈ 29,4°)
@@ -83,9 +92,12 @@ src/
     hud.ts         HUD oben/links/rechts
     details.ts     Detailfenster für Maschinen und Gebäude
     app.ts         Shell: sechs Hauptbereiche, Loop, Autosave, Offline
+    tasks.ts       Aufgabenanzeige links oben, höchstens drei Missionen
+    tutorial.ts    Coach-Markierung für die offene Einführungsmission
+    intro.ts       Kamerafahrt, Anlieferung, Begrüßung - einmal pro Unternehmen
     debug.ts       Entwicklermodus (nur Dev-Builds)
     screens/       yard · build · market · storage · trade · research
-                   staff · statistics · settings · hub
+                   staff · statistics · missions · help · settings · hub
 ```
 
 Die Abhängigkeiten laufen nur in eine Richtung:
@@ -128,6 +140,12 @@ im passenden System.
 | Neue Dekoration | `purchasables.ts` + Modell in `models.ts` | keiner |
 | Neue Firmen-Ausrichtung | `company.ts` (`PRIORITIES`) | keiner |
 | Neue Logistikfahrzeug-Klasse | `fleet.ts` | keiner |
+| Neue Mission / Meilenstein | `missions.ts` | keiner — solange das Ziel eine bekannte Metrik ist |
+| Neue Zielmetrik | `progress/tracker.ts` (ein `case`) | ein Fall |
+| Neue Belohnungsart | `types.ts` + `missions/rewards.ts` | zwei Stellen |
+| Neuer Hinweis | `help.ts` (Text) + `missions/hints.ts` (Bedingung) | eine Bedingung |
+| Neues Lexikonkapitel | `help.ts` (`HELP_CHAPTERS`) | keiner, wenn die Quelle existiert |
+| Neue FAQ-Frage | `help.ts` (`FAQ`) | keiner |
 | Neue Technologie / Stufe / Meilenstein | `tech.ts` | keiner |
 | Neuer Prestige-Knoten | `prestige.ts` | keiner |
 | Neuer Erfolg | `achievements.ts` | keiner, falls die Metrik existiert |

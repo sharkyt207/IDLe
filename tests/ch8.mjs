@@ -62,12 +62,19 @@ const hud = await page.evaluate(() => ({
 }));
 console.log('HUD:', JSON.stringify(hud));
 
+// Off the isometric view the rails go away so they cannot cover a list. Since
+// chapter 10 the open-task count travels on as a chip in the top bar, which is
+// a reserved band rather than an overlay.
 const railsOffWorld = await page.evaluate(async () => {
   window.app.select('stats');
   await new Promise((r) => setTimeout(r, 400));
-  return getComputedStyle(document.querySelector('.rail-left')).display === 'none';
+  const chips = [...document.querySelectorAll('.topbar .res-chip')].map((c) => c.title);
+  return {
+    railsHidden: getComputedStyle(document.querySelector('.rail-left')).display === 'none',
+    taskChipTravels: chips.includes('Aufgaben'),
+  };
 });
-console.log('RAILS hidden off-world:', railsOffWorld);
+console.log('RAILS off-world:', JSON.stringify(railsOffWorld));
 
 // --- Themes -----------------------------------------------------------------
 const themes = await page.evaluate(async () => {

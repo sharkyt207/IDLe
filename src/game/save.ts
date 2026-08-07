@@ -1,9 +1,16 @@
 import { Content } from '../data';
 import { THEMES, UI } from '../data/ui';
+import { TUTORIAL_MISSION_FLAGS, TUTORIAL_MISSION_IDS } from '../data/missions';
 import { availableLocales, detectLocale } from '../core/i18n';
 import { log } from '../core/log';
 import { clampScale } from '../ui/theme';
-import { createInitialState, SAVE_VERSION, type GameState } from './state';
+import {
+  createInitialState,
+  createMissionProgress,
+  SAVE_VERSION,
+  type GameState,
+  type MissionCounters,
+} from './state';
 
 const KEY = 'scrap-empire.save';
 
@@ -59,6 +66,26 @@ const MIGRATIONS: Record<number, Migration> = {
    * back to the browser language, so an existing save simply picks one up.
    */
   3: (raw) => ({ ...raw, version: 4 }),
+
+  /**
+   * 4 -> 5 (GDD chapter 10): missions, milestones and the encyclopedia.
+   *
+   * A save from before the mission system has already played through what the
+   * tutorial missions ask for, so an existing company is credited with them
+   * instead of being sent back to "zerlege dein erstes Fahrzeug". The rewards
+   * are deliberately *not* paid out - they were effectively earned long ago,
+   * and handing a late-game yard 250 € would only look like a bug.
+   */
+  4: (raw) => {
+    const tutorial = (raw.tutorial ?? {}) as { done?: unknown };
+    const missions = createMissionProgress();
+    if (tutorial.done === true) {
+      missions.done = TUTORIAL_MISSION_IDS.slice();
+      missions.flags = TUTORIAL_MISSION_FLAGS.slice();
+      missions.introSeen = true;
+    }
+    return { ...raw, version: 5, missions };
+  },
 };
 
 /**
@@ -299,12 +326,52 @@ function sanitize(raw: Record<string, unknown>): GameState {
     choiceOffered: bool(src.tutorial?.choiceOffered, false),
   };
 
+  // Missions: unknown ids are dropped so a removed mission cannot wedge the
+  // task list, and the goal amounts are re-clamped because a data change may
+  // have moved them since the save was written.
+  const missions = createMissionProgress();
+  const rawMissions = (src.missions ?? {}) as Partial<GameState['missions']>;
+  const counters = (value: unknown): MissionCounters => {
+    const c = (value ?? {}) as Partial<MissionCounters>;
+    return {
+      vehicles: Math.max(0, num(c.vehicles, 0)),
+      earned: Math.max(0, num(c.earned, 0)),
+      contracts: Math.max(0, num(c.contracts, 0)),
+      auctions: Math.max(0, num(c.auctions, 0)),
+      research: Math.max(0, num(c.research, 0)),
+      material: Math.max(0, num(c.material, 0)),
+    };
+  };
+  missions.done = [...new Set((rawMissions.done ?? []).filter((id) => !!Content.mission(id)))];
+  missions.active = (rawMissions.active ?? [])
+    .filter((entry) => entry && !!Content.mission(entry.id) && !missions.done.includes(entry.id))
+    .slice(0, 12)
+    .map((entry) => ({
+      id: entry.id,
+      target: Math.max(1, num(entry.target, Content.mission(entry.id)?.goal.amount ?? 1)),
+      since: counters(entry.since),
+      expires: Math.max(0, num(entry.expires, 0)),
+    }));
+  missions.flags = [...new Set((rawMissions.flags ?? []).filter((f) => typeof f === 'string'))];
+  missions.milestones = [...new Set((rawMissions.milestones ?? []).filter((id) => !!Content.milestone(id)))];
+  missions.seen = [...new Set((rawMissions.seen ?? []).filter((id) => typeof id === 'string'))];
+  missions.hints = [...new Set((rawMissions.hints ?? []).filter((id) => typeof id === 'string'))];
+  missions.tracked = missions.active.some((m) => m.id === rawMissions.tracked)
+    ? String(rawMissions.tracked)
+    : '';
+  missions.dailyDay = Math.floor(num(rawMissions.dailyDay, -1));
+  missions.weeklyWeek = Math.floor(num(rawMissions.weeklyWeek, -1));
+  missions.introSeen = bool(rawMissions.introSeen, false);
+  state.missions = missions;
+
   state.progressStats = {
     vehiclesDone: Math.max(0, Math.floor(num(src.progressStats?.vehiclesDone, 0))),
     partsRemoved: Math.max(0, Math.floor(num(src.progressStats?.partsRemoved, 0))),
     taps: Math.max(0, Math.floor(num(src.progressStats?.taps, 0))),
     sales: Math.max(0, Math.floor(num(src.progressStats?.sales, 0))),
     purchases: Math.max(0, Math.floor(num(src.progressStats?.purchases, 0))),
+    contractsDone: Math.max(0, Math.floor(num(src.progressStats?.contractsDone, 0))),
+    auctionsWon: Math.max(0, Math.floor(num(src.progressStats?.auctionsWon, 0))),
     discovered: (src.progressStats?.discovered ?? []).filter((id) => !!Content.vehicle(id)),
     materials: Object.fromEntries(
       Object.entries(src.progressStats?.materials ?? {}).filter(
@@ -328,6 +395,8 @@ function sanitize(raw: Record<string, unknown>): GameState {
     volumeMusic: volume(src.settings?.volumeMusic, UI.volume.music),
     volumeEffects: volume(src.settings?.volumeEffects, UI.volume.effects),
     volumeUi: volume(src.settings?.volumeUi, UI.volume.ui),
+    hints: bool(src.settings?.hints, true),
+    mentor: bool(src.settings?.mentor, true),
   };
 
   state.version = SAVE_VERSION;

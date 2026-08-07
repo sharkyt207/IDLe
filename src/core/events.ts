@@ -30,6 +30,12 @@ export interface GameEvents {
   randomEvent: { id: string };
   /** The save was written - the UI can confirm it. */
   saved: { manual: boolean };
+  /** A mission was completed; `rewards` are the payout lines (GDD chapter 10). */
+  missionDone: { id: string; rewards: string[] };
+  /** A company-value milestone was crossed. */
+  milestone: { id: string; rewards: string[] };
+  /** The hint manager has something to say. */
+  hint: { id: string; text: string; icon: string; screen?: string };
 }
 
 type Handler<K extends keyof GameEvents> = (payload: GameEvents[K]) => void;

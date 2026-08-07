@@ -25,6 +25,9 @@ import {
 } from '../progress/research';
 import { buyPerk, canPrestige, doPrestige, pointsGain } from '../progress/prestige';
 import { check as checkAchievements, tickAchievements } from '../progress/achievements';
+import { refreshMissions, resetTimedMissions, tickMissions } from '../missions/manager';
+import { checkMilestones, tickMilestones } from '../missions/milestones';
+import { resetHints, tickHints } from '../missions/hints';
 import { resetEvents, tickEvents } from './systems/events';
 
 /**
@@ -369,6 +372,10 @@ export class Game {
     const cost = nextCost(this.state, id);
     if (!this.spendMoney(cost)) return false;
     this.state.owned[id] = owned(this.state, id) + 1;
+    // The encyclopedia only shows what the player has met (GDD chapter 10).
+    // Recorded here rather than derived from `owned` so a prestige restart
+    // does not un-discover half the book.
+    if (!this.state.missions.seen.includes(id)) this.state.missions.seen.push(id);
     this.recompute();
     if (def.category === 'lot') this.bus.emit('lotBought', { lotId: def.id });
     if (def.building) this.bus.emit('built', { defId: def.id });
@@ -424,10 +431,16 @@ export class Game {
     this.autoSellCredit = 0;
     this.processCredit = {};
     resetEvents();
+    resetHints();
+    // The company is small again, so the daily goals have to be re-scaled to
+    // it - a "verdiene 4 Mio heute" left over from the old run is not a goal.
+    resetTimedMissions(this);
 
     this.recompute();
     this.loadVehicle(BALANCE.start.starterVehicle);
     checkAchievements(this);
+    refreshMissions(this);
+    checkMilestones(this);
     this.bus.emit('notice', {
       text: `Neues Unternehmen gegründet: +${gain} Industriepunkte`,
       icon: '🏆',
@@ -468,6 +481,11 @@ export class Game {
     tickMetrics(this, dt);
     tickEvents(this, dt, efficiency);
     tickAchievements(this, dt);
+    // Guidance (GDD chapter 10). All three are slow scans of counters the
+    // simulation has already updated, so they run last and cost nothing.
+    tickMissions(this, dt);
+    tickMilestones(this, dt);
+    tickHints(this, dt);
     this.statsTimer += dt;
     if (this.statsDirty && this.statsTimer >= 0.5) {
       this.statsTimer = 0;

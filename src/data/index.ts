@@ -3,6 +3,8 @@ import { PURCHASABLES } from './purchasables';
 import { TECHNOLOGIES } from './tech';
 import { PRESTIGE_PERKS } from './prestige';
 import { ACHIEVEMENTS } from './achievements';
+import { CRATES, MILESTONES, MISSIONS } from './missions';
+import { FAQ, HELP_CHAPTERS } from './help';
 import { VEHICLES } from './vehicles';
 import { AUCTION_LOTS, COLLECTIBLES, CONTRACTS } from './trade';
 import { PRIORITIES, type PriorityDef } from './company';
@@ -11,13 +13,17 @@ import type {
   CollectibleDef,
   ContractDef,
 } from './trade';
+import type { FaqEntry, HelpChapter } from './help';
 import type {
   AchievementDef,
   MaterialDef,
+  MilestoneDef,
+  MissionDef,
   PrestigePerkDef,
   PurchasableDef,
   RecipeDef,
   ResearchDef,
+  Reward,
   TechDef,
   VehicleDef,
 } from './types';
@@ -48,6 +54,9 @@ const contractMap = index(CONTRACTS);
 const auctionMap = index(AUCTION_LOTS);
 const collectibleMap = index(COLLECTIBLES);
 const priorityMap = index(PRIORITIES);
+const missionMap = index(MISSIONS);
+const milestoneMap = index(MILESTONES);
+const chapterMap = index(HELP_CHAPTERS);
 
 export const Content = {
   materials: MATERIALS as readonly MaterialDef[],
@@ -61,6 +70,11 @@ export const Content = {
   auctionLots: AUCTION_LOTS as readonly AuctionLotDef[],
   collectibles: COLLECTIBLES as readonly CollectibleDef[],
   priorities: PRIORITIES as readonly PriorityDef[],
+  missions: MISSIONS as readonly MissionDef[],
+  milestones: MILESTONES as readonly MilestoneDef[],
+  helpChapters: HELP_CHAPTERS as readonly HelpChapter[],
+  faq: FAQ as readonly FaqEntry[],
+  crates: CRATES,
 
   material: (id: string) => materialMap.get(id),
   recipe: (id: string) => recipeMap.get(id),
@@ -73,6 +87,10 @@ export const Content = {
   auctionLot: (id: string) => auctionMap.get(id),
   collectible: (id: string) => collectibleMap.get(id),
   priority: (id: string) => priorityMap.get(id),
+  mission: (id: string) => missionMap.get(id),
+  milestone: (id: string) => milestoneMap.get(id),
+  helpChapter: (id: string) => chapterMap.get(id),
+  crate: (tier: number) => CRATES.find((c) => c.tier === tier) ?? CRATES[0],
 
   /** Total technology levels in the tree - basis for the "90 % erforscht" gate. */
   totalTechLevels(): number {
@@ -164,6 +182,53 @@ export function validateContent(): string[] {
     }
   }
 
+  // Missions and milestones (GDD chapter 10). A mission that points at content
+  // which no longer exists would sit in the task list forever, so it is worth
+  // catching at startup rather than in a bug report.
+  const checkRewards = (where: string, rewards: readonly Reward[]) => {
+    for (const reward of rewards) {
+      if (reward.kind === 'material') mat(reward.material, where);
+      if (reward.kind === 'purchasable' && !purchasableMap.has(reward.id)) {
+        problems.push(`${where}: unbekannter Kauf "${reward.id}"`);
+      }
+      if (reward.kind === 'vehicle' && !vehicleMap.has(reward.id)) {
+        problems.push(`${where}: unbekanntes Fahrzeug "${reward.id}"`);
+      }
+      if (reward.kind === 'crate' && !CRATES.some((c) => c.tier === reward.tier)) {
+        problems.push(`${where}: unbekannte Kistenstufe ${reward.tier}`);
+      }
+    }
+  };
+
+  for (const m of MISSIONS) {
+    checkRequires(`Mission ${m.id}`, m.requires);
+    checkRewards(`Mission ${m.id}`, m.rewards);
+    if (m.rewards.length === 0) problems.push(`Mission ${m.id}: keine Belohnung`);
+    if (m.goal.amount <= 0) problems.push(`Mission ${m.id}: Ziel muss > 0 sein`);
+    if (m.goal.material) mat(m.goal.material, `Mission ${m.id}`);
+    if (m.goal.metric === 'ownedOf' && !purchasableMap.has(m.goal.id ?? '')) {
+      problems.push(`Mission ${m.id}: unbekannter Kauf "${m.goal.id}"`);
+    }
+    if (m.goal.metric === 'techLevelOf' && !researchMap.has(m.goal.id ?? '')) {
+      problems.push(`Mission ${m.id}: unbekannte Technologie "${m.goal.id}"`);
+    }
+    if (m.after && !missionMap.has(m.after)) {
+      problems.push(`Mission ${m.id}: unbekannte Vorgängermission "${m.after}"`);
+    }
+  }
+  for (const ms of MILESTONES) {
+    checkRewards(`Meilenstein ${ms.id}`, ms.rewards);
+    if (ms.value <= 0) problems.push(`Meilenstein ${ms.id}: Firmenwert muss > 0 sein`);
+  }
+  for (const crate of CRATES) {
+    for (const id of crate.materials) mat(id, `Kiste ${crate.tier}`);
+  }
+  for (const chapter of HELP_CHAPTERS) {
+    if (chapter.source === 'faq' && FAQ.length === 0) {
+      problems.push(`Hilfe ${chapter.id}: keine Einträge`);
+    }
+  }
+
   return problems;
 }
 
@@ -171,7 +236,10 @@ export type {
   AchievementDef,
   TechDef,
   MaterialDef,
+  MilestoneDef,
+  MissionDef,
   RecipeDef,
+  Reward,
   VehicleDef,
   PurchasableDef,
   ResearchDef,
@@ -179,4 +247,6 @@ export type {
   ContractDef,
   AuctionLotDef,
   CollectibleDef,
+  FaqEntry,
+  HelpChapter,
 };

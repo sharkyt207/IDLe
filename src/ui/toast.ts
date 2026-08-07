@@ -9,9 +9,20 @@ export class Toasts {
     parent.appendChild(this.root);
   }
 
-  show(text: string, icon = '', tone: 'info' | 'good' | 'warn' = 'info'): void {
+  /**
+   * @param onTap makes the toast actionable - a hint that says "das Lager ist
+   *   voll" is twice as useful when tapping it opens the warehouse.
+   */
+  show(text: string, icon = '', tone: 'info' | 'good' | 'warn' = 'info', onTap?: () => void): void {
     const node = el('div', `toast ${tone}`);
     node.textContent = icon ? `${icon}  ${text}` : text;
+    if (onTap) {
+      node.classList.add('tappable');
+      node.addEventListener('click', () => {
+        onTap();
+        node.remove();
+      });
+    }
     this.root.appendChild(node);
     while (this.root.childElementCount > this.max) {
       this.root.removeChild(this.root.firstChild!);

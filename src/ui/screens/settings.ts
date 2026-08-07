@@ -4,6 +4,7 @@ import type { Game } from '../../game/game';
 import { clearSave, exportSave, importSave, saveGame } from '../../game/save';
 import type { SoundSystem } from '../../audio/sound';
 import { SOUND_PREVIEW } from '../../audio/sound';
+import { forgetHints } from '../../missions/hints';
 import { applyTheme, clampScale } from '../theme';
 import {
   dialog,
@@ -54,8 +55,49 @@ export class SettingsScreen implements Screen {
     this.renderLanguage();
     this.renderThemes();
     this.renderDisplay();
+    this.renderGuidance();
     this.renderAudio();
     this.renderSave();
+  }
+
+  /**
+   * Spielerführung (GDD chapter 10).
+   *
+   * Hints and the mentor are separate switches on purpose: a player who finds
+   * the voice too chatty usually still wants to be told the yard is full.
+   */
+  private renderGuidance(): void {
+    const { game, root } = this;
+    const s = game.state.settings;
+    root.appendChild(sectionTitle(t('settings.guidance')));
+
+    root.appendChild(
+      this.toggle('💡', t('settings.hints'), t('settings.hintsDesc'), s.hints, () => {
+        s.hints = !s.hints;
+        this.apply();
+      }),
+    );
+    root.appendChild(
+      this.toggle('🧑‍🏫', t('settings.mentor'), t('settings.mentorDesc'), s.mentor, () => {
+        s.mentor = !s.mentor;
+        this.apply();
+      }),
+    );
+
+    const seen = game.state.missions.hints.length;
+    root.appendChild(
+      secondaryButton({
+        label: t('settings.hintsReset', { count: seen }),
+        icon: '🔁',
+        wide: true,
+        disabled: seen === 0,
+        onClick: () => {
+          forgetHints(game);
+          game.bus.emit('notice', { text: t('settings.hintsResetDone'), icon: '💡', tone: 'good' });
+          this.refresh();
+        },
+      }),
+    );
   }
 
   // ---------------------------------------------------------------------------

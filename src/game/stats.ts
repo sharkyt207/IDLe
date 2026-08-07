@@ -234,6 +234,11 @@ export function computeStats(state: GameState): Stats {
   // permanent bonus system, so a new source of lasting bonuses is added there.
   for (const entry of permanentBonuses(state)) applyEffect(acc, entry.effect, entry.count);
 
+  // Mission rewards can unlock things (GDD chapter 10). They join the same set
+  // buildings and research write to, so `requires.flags` keeps working
+  // everywhere without a second kind of gate.
+  for (const flag of state.missions?.flags ?? []) acc.unlocks.add(flag);
+
   for (const entry of staff) {
     // Experience and welfare raise how much a role *delivers*, not the
     // percentage it grants. Feeding the productivity bonus into the exponent

@@ -114,6 +114,43 @@ export class WorldRenderer {
     this.camera.focus(c.x, c.y);
   }
 
+  /**
+   * Scripted opening flight (GDD chapter 10): pull back over the whole yard,
+   * then settle on the dismantling pad.
+   *
+   * It is the only time the camera moves on its own - chapter 2 forbids the
+   * camera following anything, and a one-off intro is exactly the exception
+   * that proves that rule useful.
+   */
+  startIntro(seconds = 3.4): void {
+    this.introLeft = seconds;
+    this.introTotal = seconds;
+    this.camera.fit();
+  }
+
+  /** Cancels the flight - any touch during the intro lands here. */
+  stopIntro(): void {
+    this.introLeft = 0;
+  }
+
+  get introRunning(): boolean {
+    return this.introLeft > 0;
+  }
+
+  private introLeft = 0;
+  private introTotal = 1;
+
+  private updateIntro(dt: number): void {
+    if (this.introLeft <= 0) return;
+    this.introLeft = Math.max(0, this.introLeft - dt);
+    const done = 1 - this.introLeft / this.introTotal;
+    // Ease out: fast at the start, gentle on arrival.
+    const ease = 1 - Math.pow(1 - done, 3);
+    const target = this.padCenter();
+    this.camera.glideTo(target.x, target.y, Math.min(1, ease * 0.14 + 0.02));
+    if (this.introLeft === 0) this.centerOnPad();
+  }
+
   /** World-pixel centre of a structure - used to place dust and effects. */
   structureCenter(structure: Structure): Point {
     return tileToWorld(structure.tx + structure.size / 2, structure.ty + structure.size / 2);
@@ -368,6 +405,7 @@ export class WorldRenderer {
 
   render(dt: number, visible = true): void {
     this.time += dt;
+    this.updateIntro(dt);
     const state = this.game.state;
 
     this.map.sync(state);

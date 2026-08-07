@@ -123,6 +123,9 @@ export function deliver(game: Game, key: string): boolean {
   if (complete) {
     contract.done = true;
     contract.incomeLeft = ECONOMY.contracts.incomeSeconds;
+    // Counted the moment the customer is supplied, not when the recurring
+    // income runs out - that is the moment the player did the work.
+    game.state.progressStats.contractsDone++;
     game.addMoney(contract.payout);
     const def = Content.contract(contract.defId);
     game.bus.emit('notice', {

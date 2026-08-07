@@ -136,6 +136,24 @@ export const PURCHASABLES: PurchasableDef[] = [
     effects: [{ kind: 'queueSlots', amount: 1 }],
   },
   {
+    id: 'workshop',
+    name: 'Werkstatt',
+    icon: '🧰',
+    desc: 'Ein festes Dach über der Zerlegebühne. Schaltet Mechaniker frei und zerlegt selbst ein wenig mit.',
+    category: 'building',
+    group: 'Gelände',
+    baseCost: 400,
+    costGrowth: 1,
+    maxCount: 1,
+    requires: { level: 2 },
+    upkeep: 0.02,
+    effects: [
+      { kind: 'teardownRate', amount: 0.6 },
+      { kind: 'unlock', id: 'workshop' },
+    ],
+    building: { model: 'garage', size: 2, flow: 'teardown' },
+  },
+  {
     id: 'smeltery',
     name: 'Schmelzerei',
     icon: '🏭',
@@ -457,7 +475,9 @@ export const PURCHASABLES: PurchasableDef[] = [
     baseCost: 620,
     costGrowth: 1.23,
     maxCount: 40,
-    requires: { level: 3 },
+    // The first employee needs somewhere to work (GDD chapter 10: "Errichte
+    // deine erste Werkstatt → Mechaniker werden verfügbar").
+    requires: { level: 3, flags: ['workshop'] },
     salary: 0.09,
     effects: [{ kind: 'teardownRate', amount: 1.5 }],
   },

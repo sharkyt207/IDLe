@@ -10,8 +10,9 @@ Umsetzung von [GDD Kapitel 1 (Vision)](docs/gdd/01-vision.md),
 [Kapitel 5 (Maschinen)](docs/gdd/05-machines.md),
 [Kapitel 6 (Unternehmen)](docs/gdd/06-company.md),
 [Kapitel 7 (Forschung & Prestige)](docs/gdd/07-research-prestige.md),
-[Kapitel 8 (UI, UX & Art Direction)](docs/gdd/08-ui-ux.md) und
-[Kapitel 9 (Architektur)](docs/gdd/09-architecture.md).
+[Kapitel 8 (UI, UX & Art Direction)](docs/gdd/08-ui-ux.md),
+[Kapitel 9 (Architektur)](docs/gdd/09-architecture.md) und
+[Kapitel 10 (Tutorial, Missionen & Spielerführung)](docs/gdd/10-missions.md).
 
 ## Loslegen
 
@@ -27,7 +28,7 @@ npm run dev        # http://localhost:5173 - am besten in der Mobilansicht öffn
 | `npm run preview` | Produktionsbuild lokal testen |
 | `npm run typecheck` | TypeScript im strict mode |
 | `npm run simulate` | Headless-Balancinglauf (30 Min.), prüft die GDD-Zusagen |
-| `npm test` | 8 Browser-Suiten in echtem Chromium |
+| `npm test` | 10 Browser-Suiten in echtem Chromium |
 | `npm run i18n` | Übersetzungsstand und Suche nach hartkodiertem Text |
 | `npm run check` | typecheck + simulate + test |
 
@@ -36,8 +37,32 @@ npm run dev        # http://localhost:5173 - am besten in der Mobilansicht öffn
 **Kernschleife** — Schrott ankaufen → per Fingertipp zerlegen → Materialien lagern, verarbeiten
 und verkaufen → Gewinn reinvestieren → Gelände erweitern → neu gründen (Prestige).
 
-**Tutorial** in fünf Schritten, in unter zwei Minuten spielbar, inklusive der im GDD
-festgelegten ersten Investitionsentscheidung (Hammer / Lager / Magnetkran) — ohne falsche Wahl.
+**Spielbeginn** mit Kamerafahrt über den Hof, einem vorfahrenden Pickup und einem kurzen
+Begrüßungstext — jede Berührung bricht ab.
+
+**Tutorial** in fünf Schritten: Kleinwagen zerlegen, Schrott verkaufen, Schneidbrenner kaufen,
+Werkstatt bauen, ersten Mechaniker einstellen. Die Schritte sind gewöhnliche Missionen, nicht
+Sonderlogik, und die Werkstatt schaltet den Mechaniker wirklich frei. Dazu die im GDD
+festgelegte erste Investitionsentscheidung (Hammer / Lager / Magnetkran) — ohne falsche Wahl.
+
+**Missionen** in vier Arten: eine 12-teilige Hauptkette, acht Nebenmissionen, zwei tägliche und
+eine wöchentliche aus gewichteten Pools. Zeitmissionen kommen aus dem Kalender statt aus einem
+Timer und sind mit dem Datum initialisiert — kein Farmen, kein Neuwürfeln. Verlieren kann man
+nichts: eine abgelaufene Mission wird ersetzt, nie bestraft. Die **Aufgabenanzeige** links oben
+zeigt höchstens drei, mit Fortschritt, Belohnung, Sprung zum Ort der Arbeit und Anheften per
+Gedrückthalten; auf Listenbildschirmen bleibt ein Zähler in der oberen Leiste.
+
+**Sechs Firmenwert-Meilensteine** von 10.000 € bis 1 Mrd €, die nie angenommen und nie verpasst
+werden können. Belohnungen sind Deskriptoren — Geld, Punkte, Material, Anlagen, Fahrzeuge,
+Freischaltungen und Spezialkisten — und in Lieferungen gedeckelt, damit sie den Hof anschieben
+statt ihn zu überspringen.
+
+**Hilfe & Lexikon** mit 213 Einträgen, die vollständig aus den laufenden Inhalten erzeugt
+werden: Kapitel öffnen sich über Missionen, Einträge über Entdeckung. Dazu ein FAQ und ein
+Fortschrittszähler.
+
+**Hinweise und Mentor**, beide einzeln abschaltbar. Jeder Hinweis erscheint genau einmal,
+höchstens einer pro Minute, als Beobachtung formuliert statt als Anweisung.
 
 **Automatisierungsleiter** vom Handhammer über Magnetkran, Hydraulikschere, Separatoren,
 Förderband und Greifarm bis zu Robotern und der KI-Zerlegelinie. Jede Maschine hat **10
@@ -89,12 +114,14 @@ Straßen fahren, sichtbarer Materialfluss auf den Förderstrecken, 15-Minuten-Ta
 Nachtbeleuchtung, sechs Wetterlagen und frei platzierbare Dekoration.
 
 **Offline-Fortschritt** mit Rückkehr-Report, gedeckelt und über Mitarbeiter, Forschung und
-Prestige-Boni erweiterbar.
+Prestige-Boni erweiterbar. Nach längerer Abwesenheit zeigt er zusätzlich, was ansteht und was
+wartet — volles Lager, offene Anfragen, Lohnrückstand, fällige Wartung, leere Bühne.
 
 **Oberfläche aus einem Guss** — ein Designsystem aus neun Komponenten trägt jeden Screen, jede
 Farbe hat überall dieselbe Bedeutung (Blau Information, Orange Maschinen, Grün Geld, Gelb
 Forschung, Rot Fehler), und Seltenheit ist von Normal bis **Mythisch** durchgefärbt. Sechs
-Hauptbereiche: Schrottplatz, Markt, Forschung, Mitarbeiter, Statistik, Einstellungen. Ein HUD
+Hauptbereiche: Schrottplatz, Markt, Forschung, Mitarbeiter, Statistik (mit Missionen und Hilfe),
+Einstellungen. Ein HUD
 zeigt oben Geld, Firmenwert, Industrie- und Forschungspunkte, links was gerade läuft, rechts
 was klemmt.
 
@@ -129,7 +156,8 @@ Speicherstände sind versioniert, werden beim Laden saniert und überstehen Inha
 
 ## Stand
 
-Spielbarer Prototyp. Die Kapitel 1 bis 9 des GDD sind umgesetzt; Kapitel 10 ff. sind noch offen.
+Spielbarer Prototyp. Die Kapitel 1 bis 10 des GDD sind umgesetzt — damit ist die erste
+Entwicklungsphase abgeschlossen.
 
 Architekturentscheidungen sind kurz in [docs/DEVNOTES.md](docs/DEVNOTES.md) begründet.
 

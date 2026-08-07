@@ -377,3 +377,95 @@ export interface AchievementGoal {
   /** Only for `materialRecycled`. */
   material?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Missions & milestones (GDD chapter 10)
+// ---------------------------------------------------------------------------
+
+/**
+ * What a mission pays out.
+ *
+ * The GDD lists money, research points, industry points, machines, materials,
+ * decorations, buildings, vehicles and special crates. They are descriptors
+ * for the same reason effects are: a new mission is a data entry, and the
+ * reward code has one place that grows.
+ */
+export type Reward =
+  | { kind: 'money'; amount: number }
+  | { kind: 'xp'; amount: number }
+  | { kind: 'research'; amount: number }
+  | { kind: 'industry'; amount: number }
+  | { kind: 'material'; material: string; amount: number }
+  /** A machine, building, decoration or employee, granted for free. */
+  | { kind: 'purchasable'; id: string; count?: number }
+  /** A delivery placed straight on the pad or in the queue. */
+  | { kind: 'vehicle'; id: string; count?: number }
+  /** A crate: one random reward from a value band. Keeps dailies surprising. */
+  | { kind: 'crate'; tier: number }
+  /** Unlocks a feature or an encyclopedia chapter; folded into `stats.unlocks`. */
+  | { kind: 'flag'; id: string };
+
+export type MissionKind = 'tutorial' | 'main' | 'side' | 'daily' | 'weekly';
+
+/**
+ * A mission (GDD chapter 10).
+ *
+ * Goals reuse the progress tracker's metrics, so "zerlege 25 Fahrzeuge",
+ * "erreiche 100.000 € Firmenwert" and "erfülle 3 Aufträge" are the same
+ * mechanism with different data.
+ */
+export interface MissionDef {
+  id: string;
+  kind: MissionKind;
+  name: string;
+  desc: string;
+  icon: string;
+  goal: MissionGoal;
+  rewards: Reward[];
+  /** Screen the "Verfolgen" button jumps to. */
+  screen?: string;
+  requires?: Requirement;
+  /** Main missions form a chain: this one only appears after that one. */
+  after?: string;
+  /** Relative pick weight in the daily/weekly pool. */
+  weight?: number;
+  /**
+   * How a daily/weekly goal grows with the company.
+   *
+   * `level` multiplies the base amount by `1 + (level - 1) * levelScale` and
+   * suits *counts* - vehicles, contracts, technology levels - because those
+   * grow roughly with the company's level.
+   *
+   * `company` takes `levelScale` as a fraction of the current company value
+   * instead, and is the only thing that works for **money** goals: revenue in
+   * this game is exponential, and no linear multiple of the player's level
+   * stays a day's work for more than an hour.
+   */
+  scaleBy?: 'level' | 'company';
+  levelScale?: number;
+}
+
+export interface MissionGoal {
+  /** Metric name from `src/progress/tracker.ts`. */
+  metric: string;
+  amount: number;
+  /** Material id for material metrics. */
+  material?: string;
+  /** Content id for `ownedOf` / `techLevelOf`. */
+  id?: string;
+}
+
+/**
+ * A company-value milestone (GDD chapter 10). Unlike missions these are never
+ * accepted or shown as tasks - they simply happen, which is what makes them
+ * feel like the company growing rather than a checklist.
+ */
+export interface MilestoneDef {
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  /** Company value in EUR that triggers it. */
+  value: number;
+  rewards: Reward[];
+}

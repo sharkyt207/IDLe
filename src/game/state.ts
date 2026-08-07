@@ -124,6 +124,9 @@ export interface GameState {
 
   tutorial: { step: number; done: boolean; choiceOffered: boolean };
 
+  /** Missions, milestones and player guidance (GDD chapter 10). */
+  missions: MissionProgress;
+
   progressStats: {
     vehiclesDone: number;
     partsRemoved: number;
@@ -132,6 +135,10 @@ export interface GameState {
     sales: number;
     /** Manually ordered deliveries. */
     purchases: number;
+    /** Contracts fully supplied - a mission and daily goal. */
+    contractsDone: number;
+    /** Auction lots taken. */
+    auctionsWon: number;
     /** Vehicle ids ever dismantled - "alle Fahrzeugtypen entdeckt". */
     discovered: string[];
     /** material id -> units ever produced. Basis for material achievements. */
@@ -170,7 +177,60 @@ export interface GameState {
     volumeMusic: number;
     volumeEffects: number;
     volumeUi: number;
+    /** Contextual hints (GDD chapter 10: "Hinweise lassen sich abschalten"). */
+    hints: boolean;
+    /** The mentor's short comments. Separate toggle - some players want one. */
+    mentor: boolean;
   };
+}
+
+/**
+ * One accepted mission (GDD chapter 10).
+ *
+ * `since` freezes the career counters at acceptance, which is how "zerlege
+ * heute 10 Fahrzeuge" differs from "zerlege 10 Fahrzeuge" without needing a
+ * second set of counters that a prestige restart would have to reason about.
+ */
+export interface MissionEntry {
+  id: string;
+  /** Goal amount, already scaled for daily/weekly missions. */
+  target: number;
+  since: MissionCounters;
+  /** Seconds left before a timed mission is replaced. 0 = untimed. */
+  expires: number;
+}
+
+/** Counter snapshot a timed mission measures against. */
+export interface MissionCounters {
+  vehicles: number;
+  earned: number;
+  contracts: number;
+  auctions: number;
+  research: number;
+  /** Career total of *this* mission's material - see `runMaterial`. */
+  material: number;
+}
+
+export interface MissionProgress {
+  active: MissionEntry[];
+  /** Completed mission ids - main missions never come back. */
+  done: string[];
+  /** Flags granted by mission rewards; folded into `stats.unlocks`. */
+  flags: string[];
+  /** Company-value milestones already celebrated. */
+  milestones: string[];
+  /** Encyclopedia entries the player has discovered. */
+  seen: string[];
+  /** Hints already shown - every hint appears at most once. */
+  hints: string[];
+  /** The mission the task list highlights. */
+  tracked: string;
+  /** Day index the current daily set belongs to. */
+  dailyDay: number;
+  /** Week index the current weekly mission belongs to. */
+  weeklyWeek: number;
+  /** The opening sequence has played. */
+  introSeen: boolean;
 }
 
 /** Long-term storage strategy for one material. */
@@ -214,7 +274,22 @@ export interface AuctionState {
   aiMax: number;
 }
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
+
+export function createMissionProgress(): MissionProgress {
+  return {
+    active: [],
+    done: [],
+    flags: [],
+    milestones: [],
+    seen: [],
+    hints: [],
+    tracked: '',
+    dailyDay: -1,
+    weeklyWeek: -1,
+    introSeen: false,
+  };
+}
 
 export function createInitialState(
   carryPrestige?: GameState['prestige'],
@@ -261,6 +336,7 @@ export function createInitialState(
     world: { placements: {}, dayTime: 300, weather: 'clear', weatherLeft: 120 },
 
     tutorial: { step: 0, done: false, choiceOffered: false },
+    missions: createMissionProgress(),
 
     progressStats: {
       vehiclesDone: 0,
@@ -268,6 +344,8 @@ export function createInitialState(
       taps: 0,
       sales: 0,
       purchases: 0,
+      contractsDone: 0,
+      auctionsWon: 0,
       discovered: [],
       materials: {},
     },
@@ -286,6 +364,8 @@ export function createInitialState(
       volumeMusic: UI.volume.music,
       volumeEffects: UI.volume.effects,
       volumeUi: UI.volume.ui,
+      hints: true,
+      mentor: true,
     },
   };
 }

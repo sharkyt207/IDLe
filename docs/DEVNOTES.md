@@ -6,6 +6,44 @@ begleitenden Entwicklernotizen"). Neueste zuerst.
 
 ---
 
+## Belohnungen werden in Lieferungen gemessen, nicht in Euro
+
+**Symptom.** Nach Kapitel 10 stand der Bot nach 30 Minuten auf Level 96 statt
+18, mit 3·10¹⁶ € Umsatz statt 4·10⁵ €. Identische Läufe schwankten um vier
+Zehnerpotenzen.
+
+**Ursache.** Feste Eurobeträge in einer exponentiellen Wirtschaft. 2.500 € für
+das erste Fundstück kamen 18 Sekunden nach einem Start mit 500 €. Zwei nahe
+liegende Nenner halfen nicht: ein Anteil am **Firmenwert** war noch 45× zu
+heiß, weil der Firmenwert illiquide ist und die Belohnung Bargeld; ein
+Vielfaches des **Einkommens** war instabil.
+
+Der eigentliche Grund liegt in Kapitel 4: die Marge steigt mit der
+Fahrzeugklasse, der Aufstieg wird nur durch Bargeld begrenzt. Eine Belohnung,
+die eine Sprosse kauft, teleportiert den Hof.
+
+**Fix.** Der Nenner ist die Leiter: höchstens vier Lieferungen, Boden beim
+Startkapital. Derselbe Deckel gilt für Sachpreise, was auch einen falsch
+skalierten Datensatz abfängt — die Schrottskulptur (1,2 Mio Firmenwert) war als
+Belohnung einer Level-8-Nebenmission eingetragen.
+
+---
+
+## Meilensteine dürfen nicht in ihrer eigenen Währung zahlen
+
+**Symptom.** Zwei Firmenwert-Meilensteine, die zehnfach auseinanderliegen,
+lösten im selben Tick aus.
+
+**Ursache.** Sie zahlten Anlagen aus — und Anlagen sind Firmenwert. Jede
+Auszahlung erhöhte die Zahl, an der die nächste Schwelle gemessen wird.
+
+**Fix.** Höchstens ein Meilenstein pro Prüfung, und die Belohnungen sind
+gedeckeltes Bargeld, Punkte, verbrauchbare Fahrzeuge und Freischaltungen. Das
+ist auch die treuere Lesart des Kapitels: dort werden Dinge *freigeschaltet*,
+nicht verschenkt.
+
+---
+
 ## Zwei Arten von Text, zwei Mechanismen
 
 **Entscheidung.** Oberflächentext läuft über Schlüssel (`t('nav.market')`), Inhaltstext bleibt

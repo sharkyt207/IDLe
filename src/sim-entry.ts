@@ -38,3 +38,16 @@ export { ruleFor, setRule } from './company/warehouse';
 export { RoadNetwork } from './world/roads';
 export { MapSystem } from './world/map';
 export { FLEET } from './data/fleet';
+export {
+  rows as missionRows,
+  visibleRows,
+  refreshMissions,
+  targetFor,
+  tutorialActive,
+  VISIBLE_TASKS,
+} from './missions/manager';
+export { rows as milestoneRows, next as nextMilestone, prestigeVisible } from './missions/milestones';
+export { describeAll, payout, REWARD_DELIVERIES } from './missions/rewards';
+export { sections as helpSections, coverage as helpCoverage } from './missions/help';
+export { TUTORIAL_MISSION_IDS } from './data/missions';
+export { readMetric, snapshot } from './progress/tracker';

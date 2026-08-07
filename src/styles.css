@@ -123,6 +123,10 @@ body {
   display: none;
 }
 
+.res-chip.tappable {
+  cursor: pointer;
+}
+
 .res-chip {
   display: inline-flex;
   align-items: center;
@@ -142,16 +146,24 @@ body {
 
 /* --- side rails ---------------------------------------------------------- */
 
-/* The rails are HUD over the isometric world. On a list screen they would
-   just cover content, so the shell only turns them on for the yard. */
+/* The rails are HUD over the isometric world. On a list screen they would just
+   cover content, so the shell only turns them on for the yard. The open-task
+   count still travels everywhere - as a chip in the top bar, which is a
+   reserved band rather than an overlay (GDD chapter 10). */
 #app:not(.world) .rail {
   display: none !important;
 }
 
 .rail {
   position: absolute;
-  top: calc(var(--topbar-h) + var(--safe-t) + 46px);
-  width: min(46%, 210px);
+  /* `--hud-top` is the measured height of the top bar (see `Hud.refresh`); the
+     52px clear the hub's segment row, which sits at the top of the screen area
+     the rails float over. */
+  top: calc(var(--hud-top, 132px) + var(--safe-t) + 52px);
+  /* Narrow enough that the left rail and the top-right toasts can coexist on
+     a 390px screen - chapter 8 puts notifications right, chapter 10 puts the
+     task list left, and both are on screen at the same time. */
+  width: min(42%, 190px);
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -226,6 +238,141 @@ body {
   display: block;
   height: 100%;
   background: var(--blue);
+}
+
+/* --- task list (GDD chapter 10) ------------------------------------------ */
+
+.rail-tasks,
+.rail-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+}
+
+.tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  pointer-events: auto;
+}
+
+.tasks-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  backdrop-filter: blur(3px);
+}
+
+.tasks-title {
+  flex: 1 1 auto;
+  text-align: left;
+}
+
+.tasks-count {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  color: var(--text);
+}
+
+.task {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(3px);
+  font-size: 0.72rem;
+}
+
+/* The kind is readable at a glance from the left edge alone. */
+.task.kind-tutorial {
+  border-left-color: var(--accent);
+}
+.task.kind-main {
+  border-left-color: var(--blue);
+}
+.task.kind-side {
+  border-left-color: var(--green);
+}
+.task.kind-daily,
+.task.kind-weekly {
+  border-left-color: var(--yellow);
+}
+
+.task.tracked {
+  box-shadow: 0 0 0 1px var(--accent), var(--shadow-soft);
+}
+
+.task-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.task-icon {
+  font-size: 13px;
+}
+
+.task-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-bar {
+  height: 3px;
+  margin: 4px 0 3px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.task-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.task-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+/* The count never wraps; the reward gives way instead - "1 / 10" split across
+   two lines is unreadable, a truncated reward name is merely shorter. */
+.task-progress {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.task-reward {
+  color: var(--green);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 0 1 auto;
 }
 
 .topbar-row {
@@ -611,7 +758,7 @@ button.wide {
 .toasts {
   position: fixed;
   right: 8px;
-  top: calc(var(--safe-t) + var(--topbar-h) + 46px);
+  top: calc(var(--hud-top, 132px) + var(--safe-t) + 8px);
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -635,7 +782,7 @@ button.wide {
   box-shadow: var(--shadow-soft);
   padding: 7px 11px;
   font-size: 0.76rem;
-  max-width: min(72vw, 300px);
+  max-width: min(54vw, 260px);
   animation: toast-in 0.18s var(--spring);
 }
 
@@ -764,6 +911,92 @@ button.wide {
 .coach span {
   font-size: 12.5px;
   color: var(--muted);
+}
+
+/* --- intro (GDD chapter 10) ---------------------------------------------- */
+
+.intro {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 14px calc(var(--tabbar-h) + var(--safe-b) + 18px);
+  /* Nothing here blocks the yard: the welcome card is the only hit target. */
+  pointer-events: none;
+}
+
+.intro:empty {
+  display: none;
+}
+
+.intro-card {
+  pointer-events: auto;
+  width: min(100%, 420px);
+  background: color-mix(in srgb, var(--panel) 96%, #000);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.42);
+  padding: 16px 16px 14px;
+  text-align: center;
+  animation: toast-in 0.28s var(--spring);
+}
+
+.intro-icon {
+  font-size: 34px;
+}
+
+.intro-card h2 {
+  margin: 6px 0 4px;
+  font-size: 1.1rem;
+}
+
+.intro-card p {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0 0 10px;
+}
+
+/* The mentor speaks in the same voice everywhere it appears. */
+.intro-mentor {
+  font-style: italic;
+  color: var(--accent);
+}
+
+/* --- help & encyclopedia -------------------------------------------------- */
+
+.help-search {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.kv-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  font-size: 0.82rem;
+}
+
+.kv-key {
+  color: var(--muted);
+}
+
+.kv-value {
+  text-align: right;
+  font-weight: 600;
+}
+
+.toast.tappable {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 /* --- misc ---------------------------------------------------------------- */

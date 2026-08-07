@@ -1,4 +1,5 @@
 import { BALANCE } from '../data/balance';
+import { Content } from '../data';
 import { UI } from '../data/ui';
 import { duration, fmt, money } from '../core/format';
 import { currentLocale, setLocale, t } from '../core/i18n';
@@ -8,16 +9,22 @@ import { saveGame } from '../game/save';
 import { simulateOffline, type OfflineReport } from '../game/systems/offline';
 import { SoundSystem } from '../audio/sound';
 import { applyTheme } from './theme';
-import { dialog, statGrid, statTile, attachPress, tooltip } from './components';
+import { dialog, infoCard, sectionTitle, statGrid, statTile, attachPress, tooltip } from './components';
 import { Hud } from './hud';
 import { clear, el } from './dom';
 import type { Screen } from './screen';
 import { Toasts } from './toast';
 import { Tutorial } from './tutorial';
+import { TaskList } from './tasks';
+import { Intro } from './intro';
 import { DebugPanel } from './debug';
+import { mentorLine } from '../missions/hints';
+import { refreshMissions, visibleRows } from '../missions/manager';
 import { BuildScreen } from './screens/build';
+import { HelpScreen } from './screens/help';
 import { HubScreen } from './screens/hub';
 import { MarketScreen } from './screens/market';
+import { MissionsScreen } from './screens/missions';
 import { ResearchScreen } from './screens/research';
 import { SettingsScreen } from './screens/settings';
 import { StaffScreen } from './screens/staff';
@@ -42,6 +49,8 @@ export class App {
   private tabbar = el('nav', 'tabbar');
   private toasts: Toasts;
   private tutorial: Tutorial;
+  private tasks: TaskList;
+  private intro: Intro;
   private hud: Hud;
   private sound: SoundSystem;
   /** Only built in dev builds - the whole module drops out of a release. */
@@ -85,8 +94,20 @@ export class App {
     this.tutorial = new Tutorial(game, (tab) => this.select(tab));
     document.body.appendChild(this.tutorial.root);
 
+    this.tasks = new TaskList(game, (screen) => this.select(screen));
+    this.hud.taskHost.appendChild(this.tasks.root);
+    this.hud.onNavigate = (id) => this.select(id);
+
     this.yard = new YardScreen(game);
     this.yard.sound = this.sound;
+
+    // The opening sequence drives the world renderer directly - the camera
+    // flight and the arriving truck are both things only it can do.
+    this.intro = new Intro(game, {
+      flyOver: (seconds) => this.yard.renderer.startIntro(seconds),
+      deliver: () => this.yard.renderer.traffic.queueDelivery(),
+    });
+    document.body.appendChild(this.intro.root);
 
     const stats = new StatisticsScreen(game);
     const settings = new SettingsScreen(game, this.sound);
@@ -107,7 +128,10 @@ export class App {
       ]),
       new ResearchScreen(game),
       new StaffScreen(game),
-      stats,
+      // Statistik is a hub too now: the numbers, the missions and the
+      // encyclopedia are all "look things up", and the GDD caps the bottom bar
+      // at six areas (chapter 8).
+      new HubScreen('stats', 'nav.stats', '📊', [stats, new MissionsScreen(game), new HelpScreen(game)]),
       settings,
     ];
     for (const screen of this.screens) {
@@ -123,6 +147,7 @@ export class App {
       const handle = window as unknown as Record<string, unknown>;
       handle.yard = this.yard.renderer;
       handle.app = this;
+      handle.intro = this.intro;
       this.debug = new DebugPanel(game);
       handle.debug = this.debug;
       // Long-press the level chip to open it - no button in the real UI.
@@ -137,7 +162,12 @@ export class App {
     }
 
     this.select('yard');
+    // Offer whatever should already be open before the first frame, so a new
+    // company sees its first task immediately rather than half a second later.
+    refreshMissions(game);
     this.tutorial.update();
+    this.tasks.refresh();
+    if (this.intro.pending) this.intro.play();
     this.loop(performance.now());
   }
 
@@ -201,8 +231,46 @@ export class App {
       if (!auto && amount > 0) this.sound.play('sell');
     });
 
+    // Missions, milestones and hints (GDD chapter 10). All three are the same
+    // shape - something happened, say it once, keep it short.
+    bus.on('missionDone', ({ id, rewards }) => {
+      const def = Content.mission(id);
+      if (!def) return;
+      const line = mentorLine(this.game, 'missionDone');
+      this.toasts.show(
+        `${t('missions.completed', { name: def.name })} · ${rewards.join(' · ')}${line ? `\n${line}` : ''}`,
+        def.icon,
+        'good',
+      );
+      this.sound.play('levelUp');
+      this.tasks.refresh();
+      this.buildTabs();
+    });
+
+    // A milestone is a toast, not a dialog. It fires while the player is doing
+    // something else - mid-tap, mid-purchase - and a window that takes the
+    // screen to celebrate is an interruption dressed up as a reward. Tapping
+    // it opens the milestone list, where the detail belongs.
+    bus.on('milestone', ({ id, rewards }) => {
+      const def = Content.milestone(id);
+      if (!def) return;
+      this.sound.play('levelUp');
+      const mentor = mentorLine(this.game, 'milestone');
+      this.toasts.show(
+        `${def.name} · ${rewards.join(' · ')}${mentor ? `\n${mentor}` : ''}`,
+        def.icon,
+        'good',
+        () => this.select('missions'),
+      );
+    });
+
+    bus.on('hint', ({ text, icon, screen }) => {
+      this.toasts.show(text, icon, 'info', screen ? () => this.select(screen) : undefined);
+    });
+
     bus.on('progress', () => {
       this.tutorial.update();
+      this.tasks.refresh();
       this.buildTabs();
       // "Speichern erfolgt automatisch nach Bauaktionen, Käufen und
       // Forschungsabschluss" - `progress` is exactly those moments.
@@ -219,6 +287,14 @@ export class App {
       window.removeEventListener('pointerdown', unlock);
     };
     window.addEventListener('pointerdown', unlock);
+
+    // Any touch cuts the opening short - the flight and the welcome card
+    // alike. A cinematic the player cannot interrupt is the fastest way to
+    // make a first session feel slow.
+    window.addEventListener('pointerdown', (e) => {
+      if (this.yard.renderer.introRunning) this.yard.renderer.stopIntro();
+      if (!(e.target instanceof Node) || !this.intro.root.contains(e.target)) this.intro.skip();
+    });
 
     window.addEventListener('resize', () => this.yard.resize());
     window.addEventListener('orientationchange', () => setTimeout(() => this.yard.resize(), 220));
@@ -304,6 +380,7 @@ export class App {
     this.buildTabs();
     this.refreshActive();
     this.hud.refresh();
+    this.tasks.refresh();
     this.tutorial.update();
   }
 
@@ -333,6 +410,7 @@ export class App {
     if (this.uiTimer >= 0.25) {
       this.uiTimer = 0;
       this.hud.refresh();
+      this.tasks.refresh();
       if (yardVisible) this.yard.refresh();
       else this.refreshActive();
     }
@@ -363,6 +441,14 @@ export class App {
   // Offline
   // -------------------------------------------------------------------------
 
+  /**
+   * The return summary (GDD chapter 10).
+   *
+   * Longer absences get a fuller report: after a day away the player has lost
+   * the thread, so the window says what the yard earned, what happened while
+   * they were gone, and what is waiting for them - all three, or it is not a
+   * "Wiedereinstieg", just a receipt.
+   */
   showOfflineReport(report: OfflineReport): void {
     const content = el('div');
     content.appendChild(
@@ -380,6 +466,34 @@ export class App {
       content.appendChild(note);
     }
 
+    // What is waiting: open tasks first, then the standing warnings. Only for
+    // a real absence - after ten minutes away nobody needs a briefing.
+    if (report.awaySeconds >= 3600) {
+      const rows = visibleRows(this.game);
+      if (rows.length > 0) {
+        content.appendChild(sectionTitle(t('offline.tasks')));
+        for (const row of rows) {
+          content.appendChild(
+            infoCard({
+              icon: row.def.icon,
+              title: row.def.name,
+              subtitle: row.text,
+              progress: row.progress,
+            }),
+          );
+        }
+      }
+
+      const waiting = this.waitingFor();
+      if (waiting.length > 0) {
+        content.appendChild(sectionTitle(t('offline.waiting')));
+        for (const line of waiting) content.appendChild(el('p', 'card-desc', line));
+      }
+
+      const mentor = mentorLine(this.game, 'returning');
+      if (mentor) content.appendChild(el('p', 'intro-mentor', `„${mentor}"`));
+    }
+
     const { stats, state } = this.game;
     if (stats.autoBuyPerMinute <= 0 || !state.autoBuyEnabled || stats.autoSellPerSec <= 0) {
       const hint = el('p');
@@ -388,6 +502,18 @@ export class App {
     }
 
     dialog({ title: t('offline.title'), icon: '🌅', body: t('offline.body'), content });
+  }
+
+  /** Short list of things that want attention right now. */
+  private waitingFor(): string[] {
+    const { state, stats } = this.game;
+    const lines: string[] = [];
+    if (this.game.storageUsed() >= stats.storage * 0.9) lines.push(t('offline.wait.storage'));
+    if (state.trade.offers.length > 0) lines.push(t('offline.wait.offers', { count: state.trade.offers.length }));
+    if (state.metrics.arrears > 0) lines.push(t('offline.wait.arrears', { amount: money(state.metrics.arrears) }));
+    if (stats.condition < 0.7) lines.push(t('offline.wait.service', { percent: Math.round(stats.condition * 100) }));
+    if (!state.active && state.queue.length === 0) lines.push(t('offline.wait.empty'));
+    return lines;
   }
 }
 
