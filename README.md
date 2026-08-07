@@ -16,7 +16,14 @@ Umsetzung von [GDD Kapitel 1 (Vision)](docs/gdd/01-vision.md),
 
 ## Spielen
 
-Die App liegt auf GitHub Pages: **https://sharkyt207.github.io/IDLe/**
+Die App läuft auf GitHub Pages: **https://sharkyt207.github.io/IDLe/**
+
+> **Einmalig freischalten.** Pages muss ein Mensch einschalten — der
+> Actions-Token darf eine Pages-Site nicht selbst anlegen. Unter
+> *Settings → Pages → Build and deployment → Source* **„GitHub Actions"**
+> wählen, danach den Workflow „Deploy to GitHub Pages" einmal erneut starten
+> (*Actions → Deploy to GitHub Pages → Re-run all jobs*). Ab dann veröffentlicht
+> jeder Push von selbst.
 
 Sie ist als **Web-App installierbar** — auf dem Handy „Zum Home-Bildschirm
 hinzufügen" (iOS: Teilen-Menü in Safari, Android: Menü in Chrome). Danach
