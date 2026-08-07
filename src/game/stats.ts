@@ -2,7 +2,10 @@ import { BALANCE } from '../data/balance';
 import { ECONOMY } from '../data/economy';
 import { MACHINES, conditionFactor, levelMultiplier, powerFactor } from '../data/machines';
 import { COMPANY, staffLevel, staffProductivity } from '../data/company';
+import { PROGRESS } from '../data/progress';
 import { Content } from '../data';
+import { permanentBonuses } from '../progress/bonuses';
+import { meets, requirementText as gateText } from '../progress/unlocks';
 import type { Effect, MultiplierTarget, Requirement } from '../data/types';
 import type { GameState } from './state';
 import { owned } from './state';
@@ -34,6 +37,12 @@ export interface Stats {
   autoService: number;
   /** Contracts that can run at the same time. */
   contractSlots: number;
+  /** Research points generated per second (GDD chapter 7). */
+  researchPointsPerSec: number;
+  /** Extra parallel research projects beyond the base slot. */
+  researchSlots: number;
+  /** Extra technology levels the lab may reach. */
+  techTier: number;
   /** Yield multipliers: '*' applies to everything, plus per-material entries. */
   yieldMult: Record<string, number>;
 }
@@ -55,6 +64,10 @@ const NEUTRAL: Record<MultiplierTarget, number> = {
   researchSpeed: 1,
   contractReward: 1,
   staffProductivity: 1,
+  researchPoints: 1,
+  techCost: 1,
+  salary: 1,
+  offlineRate: 1,
 };
 
 interface Accumulator {
@@ -74,6 +87,9 @@ interface Accumulator {
   powerUse: number;
   autoService: number;
   contractSlots: number;
+  researchPoints: number;
+  researchSlots: number;
+  techTier: number;
   yieldMult: Record<string, number>;
 }
 
@@ -124,6 +140,15 @@ function applyEffect(acc: Accumulator, effect: Effect, count: number): void {
     case 'contractSlots':
       acc.contractSlots += effect.amount * count;
       break;
+    case 'researchPoints':
+      acc.researchPoints += effect.perSecond * count;
+      break;
+    case 'researchSlots':
+      acc.researchSlots += effect.amount * count;
+      break;
+    case 'techTier':
+      acc.techTier += effect.amount * count;
+      break;
     case 'yield': {
       const key = effect.material ?? '*';
       acc.yieldMult[key] = (acc.yieldMult[key] ?? 1) * Math.pow(effect.factor, count);
@@ -158,6 +183,9 @@ export function computeStats(state: GameState): Stats {
     powerUse: 0,
     autoService: 0,
     contractSlots: 0,
+    researchPoints: 0,
+    researchSlots: 0,
+    techTier: 0,
     yieldMult: {},
   };
 
@@ -202,21 +230,32 @@ export function computeStats(state: GameState): Stats {
     for (const effect of def.effects) applyEffect(acc, effect, count);
   }
 
-  for (const id of state.research.done) {
-    const node = Content.researchNode(id);
-    if (!node) continue;
-    for (const effect of node.effects) applyEffect(acc, effect, 1);
-  }
-
-  for (const [id, level] of Object.entries(state.prestige.perks)) {
-    const perk = Content.perk(id);
-    if (!perk || level <= 0) continue;
-    for (const effect of perk.effects) applyEffect(acc, effect, level);
-  }
+  // Technologies, prestige nodes and achievements all arrive through the
+  // permanent bonus system, so a new source of lasting bonuses is added there.
+  for (const entry of permanentBonuses(state)) applyEffect(acc, entry.effect, entry.count);
 
   for (const entry of staff) {
-    const scale = entry.count * entry.productivity * acc.mult.staffProductivity;
-    for (const effect of entry.def.effects) applyEffect(acc, effect, scale);
+    // Experience and welfare raise how much a role *delivers*, not the
+    // percentage it grants. Feeding the productivity bonus into the exponent
+    // of a multiplier effect turns "+5 % per manager" into "+105 % per
+    // manager" once the bonuses stack, which is what blew the late-game
+    // economy past 1e120 before this split existed.
+    const output = entry.count * entry.productivity * acc.mult.staffProductivity;
+    for (const effect of entry.def.effects) {
+      const scale = effect.kind === 'multiplier' || effect.kind === 'yield' ? entry.count : output;
+      applyEffect(acc, effect, scale);
+    }
+  }
+
+  // The Forschungslabor has 10 levels (GDD chapter 7): each raises point
+  // output, speed, the reachable technology tier, and at two steps the number
+  // of parallel projects.
+  const lab = Math.min(PROGRESS.research.labLevels, owned(state, 'lab'));
+  if (lab > 0) {
+    acc.researchPoints += PROGRESS.research.basePointsPerSecond + lab * PROGRESS.research.labPointsPerLevel;
+    acc.mult.researchSpeed *= 1 + lab * PROGRESS.research.labSpeedPerLevel;
+    acc.techTier += lab * PROGRESS.research.labTierPerLevel;
+    for (const at of PROGRESS.research.labSlotAt) if (lab >= at) acc.researchSlots += 1;
   }
 
   // The company focus (GDD chapter 6) is just another effect source.
@@ -257,35 +296,20 @@ export function computeStats(state: GameState): Stats {
     condition,
     autoService: acc.autoService * acc.mult.autoService,
     contractSlots: acc.contractSlots,
+    researchPointsPerSec: acc.researchPoints * acc.mult.researchPoints,
+    researchSlots: acc.researchSlots,
+    techTier: acc.techTier,
     yieldMult: acc.yieldMult,
   };
 }
 
-/** Evaluates a content requirement against the current state. */
+/** Evaluates a content requirement. Delegates to the unlock manager. */
 export function meetsRequirement(state: GameState, stats: Stats, req?: Requirement): boolean {
-  if (!req) return true;
-  if (req.level !== undefined && state.level < req.level) return false;
-  if (req.research?.some((id) => !state.research.done.includes(id))) return false;
-  if (req.owned?.some((o) => owned(state, o.id) < (o.count ?? 1))) return false;
-  if (req.flags?.some((flag) => !stats.unlocks.has(flag))) return false;
-  return true;
+  return meets(state, req, stats.unlocks);
 }
 
 /** Human readable reason a locked entry is locked - used on every card. */
-export function requirementText(req?: Requirement): string {
-  if (!req) return '';
-  const parts: string[] = [];
-  if (req.level !== undefined) parts.push(`Level ${req.level}`);
-  for (const id of req.research ?? []) {
-    parts.push(`Forschung: ${Content.researchNode(id)?.name ?? id}`);
-  }
-  for (const o of req.owned ?? []) {
-    const name = Content.purchasable(o.id)?.name ?? o.id;
-    parts.push(o.count && o.count > 1 ? `${o.count}× ${name}` : name);
-  }
-  for (const flag of req.flags ?? []) parts.push(flag);
-  return parts.join(' · ');
-}
+export const requirementText = gateText;
 
 /** Price of the next copy of a purchasable. */
 export function nextCost(state: GameState, id: string): number {
@@ -294,7 +318,7 @@ export function nextCost(state: GameState, id: string): number {
   return Math.ceil(def.baseCost * Math.pow(def.costGrowth, owned(state, id)));
 }
 
-/** Reputation cost of the next level of a prestige perk. */
+/** Industriepunkte the next level of a prestige node costs. */
 export function nextPerkCost(state: GameState, id: string): number {
   const perk = Content.perk(id);
   if (!perk) return Infinity;

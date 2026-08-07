@@ -294,7 +294,7 @@ export class App {
     grid.appendChild(statBox(money(report.moneyGained), 'Verdient'));
     grid.appendChild(statBox(fmt(report.vehiclesDone, 0), 'Fahrzeuge'));
     grid.appendChild(statBox(duration(report.seconds), 'Angerechnet'));
-    grid.appendChild(statBox(`${Math.round(BALANCE.offline.efficiency * 100)} %`, 'Effizienz'));
+    grid.appendChild(statBox(`${Math.round(report.efficiency * 100)} %`, 'Effizienz'));
     content.appendChild(grid);
 
     if (report.capped) {

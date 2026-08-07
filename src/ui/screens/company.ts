@@ -3,11 +3,15 @@ import { Content } from '../../data';
 import { COMPANY, staffXpForLevel } from '../../data/company';
 import { duration, fmt, money, rate, units } from '../../core/format';
 import type { Game } from '../../game/game';
-import { nextPerkCost } from '../../game/stats';
 import { clearSave, exportSave, importSave } from '../../game/save';
 import { sellCollectible } from '../../economy/collection';
 import { staffRows, upkeepBill, wageBill } from '../../company/payroll';
 import { report } from '../../company/statistics';
+import { difficultyFactor } from '../../data/progress';
+import type { PrestigeBranch } from '../../data/types';
+import { buyPerk, canBuyPerk, canPrestige, gates, nextPerkCost, pointsGain } from '../../progress/prestige';
+import { rows as achievementRows, titles } from '../../progress/achievements';
+import { meets, requirementText } from '../../progress/unlocks';
 import { clear, el } from '../dom';
 import { openModal } from '../modal';
 import type { Screen } from '../screen';
@@ -22,10 +26,12 @@ export class CompanyScreen implements Screen {
   /** Set by the shell so a prestige reset can rebuild the UI. */
   onReset?: () => void;
 
+  private perkBranch: PrestigeBranch = 'Produktion';
+
   constructor(private game: Game) {}
 
   hasNews(): boolean {
-    return this.game.canPrestige();
+    return canPrestige(this.game) || canAffordPerk(this.game);
   }
 
   refresh(): void {
@@ -48,6 +54,7 @@ export class CompanyScreen implements Screen {
     this.renderStaff();
     this.renderPrestige();
     this.renderPerks();
+    this.renderAchievements();
     this.renderCollection();
     this.renderFinds();
     this.renderSettings();
@@ -179,51 +186,75 @@ export class CompanyScreen implements Screen {
     }
   }
 
+  /**
+   * Prestige (GDD chapter 7). Three independent doors open the restart, so the
+   * card shows all three with their progress rather than one opaque condition.
+   */
   private renderPrestige(): void {
     const { game, root } = this;
     root.appendChild(el('div', 'screen-title', 'Neues Unternehmen (Prestige)'));
 
-    const gain = game.prestigeGain();
+    const gain = pointsGain(game);
+    const open = canPrestige(game);
     const card = el('div', 'card');
     card.appendChild(el('div', 'card-icon', '🏆'));
     const body = el('div', 'card-body');
-    body.appendChild(el('div', 'card-title', `Reputation: ${fmt(game.state.prestige.reputation, 0)}`));
+    body.appendChild(el('div', 'card-title', `Industriepunkte: ${fmt(game.state.prestige.points, 0)}`));
     body.appendChild(
       el(
         'div',
         'card-desc',
-        `Ein Neustart setzt Geld, Lager, Maschinen und Forschung zurück. Reputation und dauerhafte Boni bleiben.`,
+        'Ein Neustart verkauft das Unternehmen. Industriepunkte, der Prestige-Baum, Erfolge und entdeckte Fahrzeuge bleiben.',
       ),
     );
     body.appendChild(
-      el(
-        'div',
-        game.canPrestige() ? 'card-desc' : 'card-note',
-        game.canPrestige()
-          ? `Neustart bringt +${fmt(gain, 0)} Reputation`
-          : `Benötigt Level ${BALANCE.prestige.requiredLevel} und mindestens ${BALANCE.prestige.minReputation} Reputation (aktuell ${fmt(gain, 0)})`,
-      ),
+      el('div', open ? 'card-desc' : 'card-note', `Neustart bringt +${fmt(gain, 0)} Industriepunkte`),
     );
+    if (game.state.level < BALANCE.prestige.requiredLevel) {
+      body.appendChild(el('div', 'card-note', `Ab Level ${BALANCE.prestige.requiredLevel} möglich.`));
+    }
     if (game.state.prestige.runs > 0) {
       body.appendChild(
-        el('div', 'card-desc', `Durchläufe: ${game.state.prestige.runs} · Bester Umsatz: ${money(game.state.prestige.bestRun)}`),
+        el(
+          'div',
+          'card-desc',
+          `Durchläufe: ${game.state.prestige.runs} · Bester Umsatz: ${money(game.state.prestige.bestRun)} · Kosten ×${difficultyFactor(
+            game.state.prestige.runs,
+          ).toFixed(2)}`,
+        ),
       );
     }
     card.appendChild(body);
 
     const actions = el('div', 'card-actions');
-    const btn = el('button', game.canPrestige() ? 'primary' : '');
+    const btn = el('button', open ? 'primary' : '');
     btn.textContent = 'Neu gründen';
-    btn.disabled = !game.canPrestige();
+    btn.disabled = !open;
     btn.addEventListener('click', () => this.confirmPrestige(gain));
     actions.appendChild(btn);
     card.appendChild(actions);
     root.appendChild(card);
+
+    // One of these has to be met - show which is closest.
+    for (const gate of gates(game)) {
+      const row = el('div', 'card');
+      const gbody = el('div', 'card-body');
+      gbody.appendChild(
+        el('div', gate.met ? 'card-desc' : 'card-note', `${gate.met ? '✔' : '○'} ${gate.label}`),
+      );
+      const bar = el('div', 'xp-bar');
+      const fill = el('i');
+      fill.style.width = `${Math.min(100, Math.max(1, gate.progress * 100))}%`;
+      bar.appendChild(fill);
+      gbody.appendChild(bar);
+      row.appendChild(gbody);
+      root.appendChild(row);
+    }
   }
 
   private confirmPrestige(gain: number): void {
     const content = el('div');
-    const yes = el('button', 'primary wide', `Ja, +${fmt(gain, 0)} Reputation`);
+    const yes = el('button', 'primary wide', `Ja, +${fmt(gain, 0)} Industriepunkte`);
     yes.addEventListener('click', () => {
       this.game.doPrestige();
       close();
@@ -233,23 +264,38 @@ export class CompanyScreen implements Screen {
 
     const close = openModal({
       title: 'Unternehmen neu gründen?',
-      body: 'Geld, Lager, Maschinen, Mitarbeiter und Forschung werden zurückgesetzt. Reputation, gekaufte Prestige-Boni und entdeckte Fahrzeuge bleiben erhalten.',
+      body: 'Geld, Lager, Maschinen, Mitarbeiter, Technologien und Gelände werden zurückgesetzt. Industriepunkte, der Prestige-Baum, Erfolge und entdeckte Fahrzeuge bleiben erhalten. Jeder Durchlauf macht die Welt etwas teurer — und die Belohnungen deutlich größer.',
       content,
     });
   }
 
+  /** The prestige tree: five branches, bought with Industriepunkte. */
   private renderPerks(): void {
     const { game, root } = this;
-    if (game.state.prestige.runs === 0 && game.state.prestige.reputation === 0) return;
+    if (game.state.prestige.runs === 0 && game.state.prestige.points === 0) return;
 
-    root.appendChild(el('div', 'screen-title', 'Dauerhafte Boni'));
-    for (const perk of Content.perks) {
+    root.appendChild(el('div', 'screen-title', `Prestige-Baum (${fmt(game.state.prestige.points, 0)} 🏆)`));
+
+    const row = el('div', 'btn-row seg-row');
+    for (const branch of PRESTIGE_BRANCHES) {
+      const btn = el('button', branch === this.perkBranch ? '' : 'ghost');
+      btn.innerHTML = `${PRESTIGE_ICON[branch]}<span class="price">${branch}</span>`;
+      btn.addEventListener('click', () => {
+        this.perkBranch = branch;
+        this.refresh();
+      });
+      row.appendChild(btn);
+    }
+    root.appendChild(row);
+
+    for (const perk of Content.perks.filter((p) => p.branch === this.perkBranch)) {
       const level = game.state.prestige.perks[perk.id] ?? 0;
-      const cost = nextPerkCost(game.state, perk.id);
+      const cost = nextPerkCost(game, perk.id);
       const maxed = level >= perk.maxLevel;
-      const affordable = game.state.prestige.reputation >= cost;
+      const reachable = meets(game.state, perk.requires, game.stats.unlocks);
+      const affordable = canBuyPerk(game, perk.id);
 
-      const card = el('div', 'card');
+      const card = el('div', `card${reachable || level > 0 ? '' : ' locked'}`);
       card.appendChild(el('div', 'card-icon', perk.icon));
       const body = el('div', 'card-body');
       const title = el('div', 'card-title');
@@ -257,19 +303,62 @@ export class CompanyScreen implements Screen {
       title.appendChild(el('span', 'count', `Stufe ${level}/${perk.maxLevel}`));
       body.appendChild(title);
       body.appendChild(el('div', 'card-desc', perk.desc));
+      if (!reachable) body.appendChild(el('div', 'card-note', `🔒 ${requirementText(perk.requires)}`));
       card.appendChild(body);
 
-      if (!maxed) {
+      if (!maxed && reachable) {
         const actions = el('div', 'card-actions');
         const btn = el('button', affordable ? 'primary' : '');
         btn.innerHTML = `Kaufen<span class="price">${fmt(cost, 0)} 🏆</span>`;
         btn.disabled = !affordable;
         btn.addEventListener('click', () => {
-          if (game.buyPerk(perk.id)) this.refresh();
+          if (buyPerk(game, perk.id)) this.refresh();
         });
         actions.appendChild(btn);
         card.appendChild(actions);
       }
+      root.appendChild(card);
+    }
+  }
+
+  /** Achievements: different playstyles, small permanent nods. */
+  private renderAchievements(): void {
+    const { game, root } = this;
+    const list = achievementRows(game);
+    const earned = list.filter((r) => r.earned).length;
+    root.appendChild(el('div', 'screen-title', `Erfolge (${earned}/${list.length})`));
+
+    const owned = titles(game);
+    if (owned.length > 0) {
+      root.appendChild(el('div', 'card-note', `Titel: ${owned.join(' · ')}`));
+    }
+
+    // Earned first, then whatever is closest to completion - the next goal is
+    // always the one at the top of the unearned pile.
+    const sorted = [...list].sort(
+      (a, b) => Number(b.earned) - Number(a.earned) || b.progress - a.progress,
+    );
+    for (const row of sorted) {
+      const card = el('div', `card${row.earned ? '' : ' locked'}`);
+      card.appendChild(el('div', 'card-icon', row.earned ? row.def.icon : '🔒'));
+      const body = el('div', 'card-body');
+      const title = el('div', 'card-title');
+      title.appendChild(document.createTextNode(row.def.name));
+      if (row.def.title) title.appendChild(el('span', 'count', `„${row.def.title}"`));
+      body.appendChild(title);
+      body.appendChild(el('div', 'card-desc', row.def.desc));
+      if (!row.earned) {
+        const bar = el('div', 'xp-bar');
+        const fill = el('i');
+        fill.style.width = `${Math.max(1, row.progress * 100)}%`;
+        bar.appendChild(fill);
+        bar.style.margin = '5px 0 3px';
+        body.appendChild(bar);
+        body.appendChild(
+          el('div', 'card-desc', `${fmt(row.value, 0)} / ${fmt(row.target, 0)}`),
+        );
+      }
+      card.appendChild(body);
       root.appendChild(card);
     }
   }
@@ -439,4 +528,19 @@ function toggleRow(icon: string, label: string, on: boolean, onToggle: () => voi
   row.appendChild(pill);
   row.addEventListener('click', onToggle);
   return row;
+}
+
+const PRESTIGE_BRANCHES: PrestigeBranch[] = ['Produktion', 'Wirtschaft', 'Forschung', 'Logistik', 'Spezial'];
+
+const PRESTIGE_ICON: Record<PrestigeBranch, string> = {
+  Produktion: '🏭',
+  Wirtschaft: '💰',
+  Forschung: '🔬',
+  Logistik: '🚚',
+  Spezial: '✨',
+};
+
+/** A spendable Industriepunkt is worth a badge on the tab. */
+function canAffordPerk(game: Game): boolean {
+  return Content.perks.some((perk) => canBuyPerk(game, perk.id));
 }

@@ -235,4 +235,7 @@ export const COLLECTIBLES: CollectibleDef[] = [
   { id: 'model', name: 'Sammlermodell', icon: '🏎️', value: 12_000, weight: 6, minClass: 3 },
   { id: 'signed', name: 'Signiertes Bauteil', icon: '✍️', value: 42_000, weight: 4, minClass: 4 },
   { id: 'prototype', name: 'Prototyp', icon: '🧪', value: 260_000, weight: 2, minClass: 5 },
+  // The alien material from GDD chapter 7. Vanishingly rare, and the only way
+  // into the "Exotische Legierungen" branch - a find, not a purchase.
+  { id: 'meteorite', name: 'Unbekanntes Metall', icon: '🌠', value: 900_000, weight: 1, minClass: 6 },
 ];

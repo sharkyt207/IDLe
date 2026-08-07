@@ -15,6 +15,23 @@ export { vehicleValue } from './data/vehicles';
 export { serviceAll, serviceCost, machineList } from './game/systems/maintenance';
 export { MACHINES } from './data/machines';
 export { COMPANY, staffLevel } from './data/company';
+export { PROGRESS, difficultyFactor } from './data/progress';
+export {
+  canStart as canResearch,
+  nextTechCost,
+  researchSlots,
+  slotsFree,
+  startResearch,
+  statusOf,
+  techTier,
+  visibleTechs,
+} from './progress/research';
+export { automationRate, canPrestige, doPrestige, gates, pointsGain, buyPerk, canBuyPerk } from './progress/prestige';
+export { rows as achievementRows, titles, check as checkAchievements } from './progress/achievements';
+export { researchShare, techLevel, techLevelsTotal, techsDone } from './progress/unlocks';
+export { permanentBonuses } from './progress/bonuses';
+export { simulateOffline } from './game/systems/offline';
+export { createInitialState, SAVE_VERSION } from './game/state';
 export { runningCosts, staffRows, upkeepBill, wageBill } from './company/payroll';
 export { report } from './company/statistics';
 export { ruleFor, setRule } from './company/warehouse';

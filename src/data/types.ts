@@ -71,6 +71,12 @@ export type Effect =
   | { kind: 'yield'; material?: string; factor: number }
   /** Extra contracts the company can run at once. */
   | { kind: 'contractSlots'; amount: number }
+  /** Research points generated per second by the lab and its staff. */
+  | { kind: 'researchPoints'; perSecond: number }
+  /** Projects the lab can run at the same time. */
+  | { kind: 'researchSlots'; amount: number }
+  /** Raises the highest technology level the lab may reach. */
+  | { kind: 'techTier'; amount: number }
   /** Unlocks content that is otherwise gated (vehicles, recipes, purchasables). */
   | { kind: 'unlock'; id: string };
 
@@ -90,18 +96,39 @@ export type MultiplierTarget =
   | 'autoService'
   | 'researchSpeed'
   | 'contractReward'
-  | 'staffProductivity';
+  | 'staffProductivity'
+  | 'researchPoints'
+  | 'techCost'
+  | 'salary'
+  | 'offlineRate';
 
 /** Requirement gate. All listed conditions must hold. */
 export interface Requirement {
   /** Minimum company level. */
   level?: number;
-  /** Research node ids that must be completed. */
+  /** Research node ids that must be completed (level 1 or higher). */
   research?: string[];
+  /** Technology ids that must have reached a given level. */
+  tech?: { id: string; level?: number }[];
   /** Purchasable ids the player must own at least one (or `n`) of. */
   owned?: { id: string; count?: number }[];
   /** Explicit unlock flags granted by `{ kind: 'unlock' }` effects. */
   flags?: string[];
+  /**
+   * Career milestones (GDD chapter 7: "Seltene Technologien"). These are what
+   * make a technology appear out of nowhere after 5.000 vehicles or the third
+   * company - conditions no amount of money can buy.
+   */
+  progress?: {
+    vehiclesDone?: number;
+    prestigeRuns?: number;
+    lifetimeEarned?: number;
+    /** A collectible that has to be in the display case. */
+    collectible?: string;
+    /** Technologies completed to at least level 1. */
+    techsDone?: number;
+    achievements?: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -231,31 +258,122 @@ export type FlowRole = 'teardown' | 'sort' | 'store' | 'melt' | 'produce' | 'shi
 // Research
 // ---------------------------------------------------------------------------
 
-export interface ResearchDef {
+/**
+ * A technology in the tree (GDD chapter 7).
+ *
+ * Technologies have levels, not a done flag. `perLevel` effects stack with
+ * every step; `milestones` fire once when a specific level is reached and are
+ * where the tree changes the *game* rather than a number - a new robot, a new
+ * market screen, a new energy source.
+ */
+export interface TechDef {
   id: string;
   name: string;
   icon: string;
   desc: string;
-  branch: string;
-  cost: number;
-  /** Seconds the lab needs. 0 = instant. */
+  branch: TechBranch;
+  maxLevel: number;
+  /** Cost of level 1; every further level multiplies by `costGrowth`. */
+  cost: TechCost;
+  costGrowth: number;
+  /** Seconds the lab needs for level 1, scaled the same way. */
   duration: number;
+  durationGrowth?: number;
   requires?: Requirement;
-  effects: Effect[];
+  /** Applied once per owned level. */
+  perLevel?: Effect[];
+  /** One-off jumps: `{ level: 3, desc: '…', effects: [...] }`. */
+  milestones?: { level: number; desc: string; effects: Effect[] }[];
+  /**
+   * Hidden until its requirement holds. The rare technologies from the GDD
+   * ("Industrie 5.0" after 5.000 vehicles) are ordinary entries with this flag.
+   */
+  secret?: boolean;
 }
+
+export type TechBranch =
+  | 'Maschinen'
+  | 'Materialkunde'
+  | 'Robotik'
+  | 'KI'
+  | 'Energie'
+  | 'Logistik'
+  | 'Personal'
+  | 'Umwelttechnik';
+
+/**
+ * Research is deliberately not payable with money alone (GDD chapter 7):
+ * points come from the lab, rare materials come from actually dismantling
+ * things. A rich player still has to run a yard.
+ */
+export interface TechCost {
+  points: number;
+  money: number;
+  materials?: { material: string; amount: number }[];
+}
+
+/** Kept as an alias so older content and UI code keep compiling. */
+export type ResearchDef = TechDef;
 
 // ---------------------------------------------------------------------------
 // Prestige
 // ---------------------------------------------------------------------------
 
+/**
+ * A node in the prestige tree, bought with Industriepunkte and kept forever.
+ * Branches follow the GDD: Produktion, Wirtschaft, Forschung, Logistik, Spezial.
+ */
 export interface PrestigePerkDef {
   id: string;
   name: string;
   icon: string;
   desc: string;
-  /** Reputation points per level. */
+  branch: PrestigeBranch;
+  /** Industriepunkte for the first level. */
   cost: number;
   costGrowth: number;
   maxLevel: number;
+  requires?: Requirement;
   effects: Effect[];
+}
+
+export type PrestigeBranch = 'Produktion' | 'Wirtschaft' | 'Forschung' | 'Logistik' | 'Spezial';
+
+// ---------------------------------------------------------------------------
+// Achievements
+// ---------------------------------------------------------------------------
+
+/**
+ * Achievements reward different ways of playing (GDD chapter 7). The permanent
+ * bonuses are deliberately small: they are a nod, not a second progression
+ * system, and they must never make an unplayed style feel mandatory.
+ */
+export interface AchievementDef {
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  /** Shown next to the player's company name once earned. */
+  title?: string;
+  /** What has to happen. Evaluated against the run and the career. */
+  goal: AchievementGoal;
+  /** Small permanent bonus, folded in by the bonus system. */
+  effects?: Effect[];
+}
+
+export interface AchievementGoal {
+  metric:
+    | 'vehiclesDone'
+    | 'lifetimeEarned'
+    | 'collectibles'
+    | 'techLevels'
+    | 'prestigeRuns'
+    | 'machineLevels'
+    | 'staffLevel'
+    | 'materialRecycled'
+    | 'automationRate'
+    | 'companyValue';
+  amount: number;
+  /** Only for `materialRecycled`. */
+  material?: string;
 }

@@ -12,6 +12,36 @@ type Migration = (raw: Record<string, unknown>) => Record<string, unknown>;
 const MIGRATIONS: Record<number, Migration> = {
   // 0 -> 1: initial format. Kept as a template for future changes.
   0: (raw) => ({ ...raw, version: 1 }),
+
+  /**
+   * 1 -> 2 (GDD chapter 7): research nodes became levelled technologies and
+   * Reputation became Industriepunkte. Old completed nodes map to level 1 of
+   * the technology with the same id; anything that no longer exists is
+   * dropped by `sanitize` afterwards.
+   */
+  1: (raw) => {
+    const research = (raw.research ?? {}) as { done?: unknown; active?: unknown };
+    const techs: Record<string, number> = {};
+    for (const id of Array.isArray(research.done) ? research.done : []) {
+      if (typeof id === 'string') techs[id] = 1;
+    }
+
+    const prestige = (raw.prestige ?? {}) as Record<string, unknown>;
+    // The perk ids were renamed rep_* -> ip_* when the tree grew branches.
+    const perks: Record<string, number> = {};
+    for (const [id, level] of Object.entries((prestige.perks ?? {}) as Record<string, number>)) {
+      perks[id.startsWith('rep_') ? `ip_${id.slice(4)}` : id] = level;
+    }
+    const points = typeof prestige.reputation === 'number' ? prestige.reputation : 0;
+
+    return {
+      ...raw,
+      version: 2,
+      research: { points: 0, techs, active: [], seen: [] },
+      prestige: { ...prestige, perks, points, lifetimePoints: points },
+      achievements: [],
+    };
+  },
 };
 
 /**
@@ -171,14 +201,32 @@ function sanitize(raw: Record<string, unknown>): GameState {
     if (Content.material(id) && locked === true) state.autoSellLocked[id] = true;
   }
 
-  const done = (src.research?.done ?? []).filter((id) => !!Content.researchNode(id));
-  const active = src.research?.active;
+  // Technologies: keep only known ids, clamp levels to the current maxLevel.
+  const techs: Record<string, number> = {};
+  for (const [id, level] of Object.entries(src.research?.techs ?? {})) {
+    const tech = Content.researchNode(id);
+    if (tech && typeof level === 'number' && level > 0) {
+      techs[id] = Math.min(Math.floor(level), tech.maxLevel);
+    }
+  }
+  const active = (src.research?.active ?? [])
+    .map((raw) => {
+      const p = raw as unknown as { id?: string; level?: number; remaining?: number; total?: number };
+      const tech = p?.id ? Content.researchNode(p.id) : undefined;
+      if (!tech) return null;
+      const level = Math.max(1, Math.min(Math.floor(num(p.level, 1)), tech.maxLevel));
+      // A project for a level the player already has would never finish.
+      if ((techs[tech.id] ?? 0) >= level) return null;
+      const total = Math.max(1, num(p.total, tech.duration));
+      return { id: tech.id, level, remaining: Math.max(0, Math.min(total, num(p.remaining, total))), total };
+    })
+    .filter((p) => p !== null);
+
   state.research = {
-    done: [...new Set(done)],
-    active:
-      active && Content.researchNode(active.id) && !done.includes(active.id)
-        ? { id: active.id, remaining: Math.max(0, num(active.remaining, 0)) }
-        : null,
+    points: Math.max(0, num(src.research?.points, 0)),
+    techs,
+    active,
+    seen: (src.research?.seen ?? []).filter((key) => typeof key === 'string'),
   };
 
   state.queue = (src.queue ?? []).filter((id) => !!Content.vehicle(id)).slice(0, 64);
@@ -204,12 +252,16 @@ function sanitize(raw: Record<string, unknown>): GameState {
       perks[id] = Math.min(Math.floor(level), perk.maxLevel);
     }
   }
+  const points = Math.max(0, num(src.prestige?.points, 0));
   state.prestige = {
-    reputation: Math.max(0, num(src.prestige?.reputation, 0)),
+    points,
+    lifetimePoints: Math.max(points, num(src.prestige?.lifetimePoints, points)),
     perks,
     runs: Math.max(0, Math.floor(num(src.prestige?.runs, 0))),
     bestRun: Math.max(0, num(src.prestige?.bestRun, 0)),
   };
+
+  state.achievements = [...new Set((src.achievements ?? []).filter((id) => !!Content.achievement(id)))];
 
   // World: keep only placements whose keys still exist as content.
   const placements: Record<string, string> = {};
@@ -237,6 +289,11 @@ function sanitize(raw: Record<string, unknown>): GameState {
     sales: Math.max(0, Math.floor(num(src.progressStats?.sales, 0))),
     purchases: Math.max(0, Math.floor(num(src.progressStats?.purchases, 0))),
     discovered: (src.progressStats?.discovered ?? []).filter((id) => !!Content.vehicle(id)),
+    materials: Object.fromEntries(
+      Object.entries(src.progressStats?.materials ?? {}).filter(
+        ([id, amount]) => Content.material(id) && typeof amount === 'number' && amount > 0,
+      ),
+    ),
   };
 
   state.settings = { haptics: bool(src.settings?.haptics, true) };

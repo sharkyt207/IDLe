@@ -7,6 +7,7 @@ import { tickAuctions } from './auctions';
 import { collectionValue } from './collection';
 import { tickContracts } from './contracts';
 import { storedValue } from './market';
+import { techLevelsTotal } from '../progress/unlocks';
 
 /**
  * Economy manager: the one place that ties the trading systems into the tick
@@ -47,7 +48,7 @@ export function companyValue(game: Game): number {
   return (
     assets * assetShare +
     storedValue(state, game.stats) * inventoryShare +
-    state.research.done.length * perResearch +
+    techLevelsTotal(state) * perResearch +
     employees * perEmployee +
     collectionValue(game) +
     game.stats.companyValue

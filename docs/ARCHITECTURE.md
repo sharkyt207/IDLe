@@ -17,7 +17,10 @@ src/
     purchasables.ts Werkzeuge, Maschinen, Mitarbeiter, Gebäude, Grundstücke, Deko
     trade.ts       Verträge, Auktionslose, Fundstücke
     lots.ts        Kartengeometrie der Grundstücke
-    research.ts    Forschungsbaum + Prestige-Boni
+    tech.ts        Technologiebaum: 8 Zweige, Stufen, Meilensteine
+    prestige.ts    Prestige-Baum: 5 Zweige, Industriepunkte
+    achievements.ts Erfolge mit Titeln und kleinen Dauerboni
+    progress.ts    Forschung, Labor, Prestige-Türen, Schwierigkeitsrampe
     company.ts     Personal, Löhne, Prioritäten, Kennzahlen
     fleet.ts       Logistikfahrzeug-Klassen + Verkehrsregeln
     index.ts       Registry + Inhalts-Validierung
@@ -43,6 +46,13 @@ src/
     payroll.ts     Löhne, Gebäudeunterhalt, Mitarbeitererfahrung
     warehouse.ts   Lagerregeln (Mindestbestand, Sperre, Mindestpreis)
     statistics.ts  Betriebszahlen: Tag/Woche, Effizienz, CO₂
+
+  progress/      Langzeitfortschritt (GDD Kapitel 7), einzeln testbar
+    research.ts    Research Manager: Punkte, Kosten, parallele Projekte
+    prestige.ts    Prestige Manager: Türen, Industriepunkte, Neustart
+    achievements.ts Achievement Manager: Metriken, Titel, Belohnungen
+    bonuses.ts     Permanent Bonus System: alles dauerhaft Besessene
+    unlocks.ts     Unlock Manager: eine Stelle für jede Freischaltbedingung
 
   world/         Spielwelt (GDD Kapitel 3), unabhängig austauschbare Module
     iso.ts         Isometrische Projektion (64:36 ≈ 29,4°)
@@ -97,6 +107,11 @@ im passenden System.
 | Neue Dekoration | `purchasables.ts` + Modell in `models.ts` | keiner |
 | Neue Firmen-Ausrichtung | `company.ts` (`PRIORITIES`) | keiner |
 | Neue Logistikfahrzeug-Klasse | `fleet.ts` | keiner |
+| Neue Technologie / Stufe / Meilenstein | `tech.ts` | keiner |
+| Neuer Prestige-Knoten | `prestige.ts` | keiner |
+| Neuer Erfolg | `achievements.ts` | keiner, falls die Metrik existiert |
+| Neue **Art** von Freischaltbedingung | `types.ts` + `unlocks.ts` | ja, klein |
+| Neue Quelle dauerhafter Boni | `bonuses.ts` | ja, klein |
 | Neues Gebäudemodell | `models.ts` (Tabelleneintrag) | keiner |
 | Neue Maschine / Linie / Kraftwerk | `purchasables.ts` + Modell in `models.ts` | keiner |
 | Neue **Art** von Wirkung | `types.ts` + `stats.ts` + System | ja, klein |
@@ -185,6 +200,39 @@ Mitarbeitereffekte werden **nach** den Gebäuden gefaltet, damit der Aufenthalts
 `mult.staffProductivity` auf sie wirken können — die Reihenfolge in `computeStats` ist an dieser
 Stelle bedeutungstragend.
 
+## Der Langzeitfortschritt
+
+Technologien haben **Stufen, keine Häkchen**. `perLevel`-Effekte stapeln sich mit jeder Stufe,
+`milestones` zünden einmalig auf einer bestimmten Stufe — dort verändert eine Technologie das
+Spiel statt einer Zahl (neue Roboter, neue Energiequelle, neue Anzeige). Freischaltungen sind
+gewöhnliche `unlock`-Effekte auf Meilensteinen.
+
+Forschung kostet **Punkte, Geld und oft Material**. Punkte entstehen nur im Labor, Material nur
+beim Zerlegen — damit kann Geld allein keinen Fortschritt erzwingen, was die zentrale Forderung
+aus Kapitel 7 ist.
+
+Alles dauerhaft Besessene läuft über **ein** Modul: `bonuses.ts` liefert Technologiestufen,
+Prestige-Knoten und Erfolge als `{ effect, count }`-Liste, und `stats.ts` faltet nur noch diese
+Liste. Eine vierte Quelle dauerhafter Boni wird dort ergänzt, nicht in `stats.ts`.
+
+Ebenso hat jede Freischaltbedingung **einen** Ort: `unlocks.ts`. Neben Level, Forschung, Besitz
+und Flags kennt `Requirement.progress` Karrierebedingungen (zerlegte Fahrzeuge, Neugründungen,
+Fundstücke), auf denen die seltenen Technologien sitzen.
+
+### Mitarbeiter skalieren Ausstoß, nicht Prozentsätze
+
+In `computeStats` werden Mitarbeitereffekte gesplittet: flache Effekte skalieren mit
+`Anzahl × Erfahrung × Wohlfahrtsbonus`, Multiplikator- und Ausbeuteeffekte nur mit der Anzahl.
+Das ist kein Detail — den Produktivitätsbonus in den *Exponenten* eines Multiplikators zu
+geben, machte aus „+5 % pro Manager" bei gestapelten Boni „+105 % pro Manager" und trieb die
+Spätspiel-Wirtschaft um über hundert Zehnerpotenzen nach oben.
+
+### Endliche Zahlen
+
+Idle-Kurven sind exponentiell, aber ein Wert, der `Infinity` erreicht, wird bei der nächsten
+Subtraktion zu `NaN` und nimmt den Spielstand mit. Alle laufenden Summen (Geld, Umsatz, XP,
+recycelte Menge) sind deshalb auf 1e280 gedeckelt.
+
 ## Die Logistik
 
 `roads.ts` baut aus denselben Polylinien, die die Karte zeichnet, einen Routing-Graphen. Ein
@@ -201,7 +249,7 @@ jeden Auftrag an die kleinste freie Klasse, die die Last trägt.
 
 ## Leistung auf Mittelklasse-Geräten
 
-- Keine Laufzeit-Abhängigkeiten; Build ≈ 58 kB gzip.
+- Keine Laufzeit-Abhängigkeiten; Build ≈ 66 kB gzip.
 - Canvas-Zeichnung aus Vektorformen, kein Asset-Laden; DPR auf 2 begrenzt.
 - Nur sichtbare Kacheln, Anlagen, Fahrzeuge und Pakete werden gezeichnet.
 - Animationen und Spawns pausieren, sobald der Hof nicht der aktive Screen ist.
@@ -221,9 +269,14 @@ npm run simulate -- 180
 ```
 
 `scripts/simulate.mjs` spielt das Spiel headless in Node (die `game/`-Schicht ist DOM-frei) und
-prüft die Zusagen der Kapitel 2 bis 6: mindestens fünf Entscheidungen in den ersten zehn
+prüft die Zusagen der Kapitel 2 bis 7: mindestens fünf Entscheidungen in den ersten zehn
 Minuten, kein Stillstand über fünf Minuten, erreichte Automatisierung, sichtbares Wachstum,
 gedeckter Strom, gepflegte Anlagen, bezahlte Löhne, tragbare Betriebskosten, wirksame
-Prioritäten und ein Straßennetz, das jedes gekaufte Grundstück erreicht.
+Prioritäten, ein Straßennetz, das jedes gekaufte Grundstück erreicht, ein gebautes Labor,
+laufende Forschung in der ersten Sitzung, wachsender Technologiebaum, erreichte Meilensteine,
+freigeschaltete Erfolge und erreichbares Prestige.
+
+Die Prüfungen skalieren mit der Laufzeit: Meilensteine und ein breiter Baum sind eine Zusage
+für die zweite Sitzung, nicht für die erste.
 
 Nach jeder Änderung an `src/data/*` sollte dieser Lauf wiederholt werden.

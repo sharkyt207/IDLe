@@ -7,8 +7,9 @@ Umsetzung von [GDD Kapitel 1 (Vision)](docs/gdd/01-vision.md),
 [Kapitel 2 (Core Gameplay)](docs/gdd/02-core-gameplay.md),
 [Kapitel 3 (Spielwelt)](docs/gdd/03-world.md),
 [Kapitel 4 (Wirtschaft)](docs/gdd/04-economy.md),
-[Kapitel 5 (Maschinen)](docs/gdd/05-machines.md) und
-[Kapitel 6 (Unternehmen)](docs/gdd/06-company.md).
+[Kapitel 5 (Maschinen)](docs/gdd/05-machines.md),
+[Kapitel 6 (Unternehmen)](docs/gdd/06-company.md) und
+[Kapitel 7 (Forschung & Prestige)](docs/gdd/07-research-prestige.md).
 
 ## Loslegen
 
@@ -47,8 +48,22 @@ Eisenschrott bis Palladium, fünf Qualitätsstufen, 15 Produktionsrezepte, dynam
 acht Vertragskunden mit laufendem Einkommen, Auktionen gegen KI-Bieter, neun Sammler-Fundstücke
 und ein Firmenwert aus allem, was gebaut wurde.
 
-**Forschung** mit 21 Knoten in vier Zweigen, **Prestige** mit sieben dauerhaften Boni,
-80+ Kaufobjekte.
+**Technologiebaum** mit 31 Technologien in acht Zweigen (Maschinen, Materialkunde, Robotik, KI,
+Energie, Logistik, Personal, Umwelttechnik), jede mit mehreren Stufen. Forschung lässt sich
+**nicht mit Geld erzwingen**: eine Stufe kostet Forschungspunkte, Geld *und* oft seltene
+Materialien. Viele Stufen sind Meilensteine, die neue Mechaniken freischalten statt Zahlen zu
+erhöhen — Roboter, Drohnen, Preisprognosen, Fusionsreaktor. **Drei seltene Technologien**
+erscheinen erst, wenn etwas passiert, das man nicht kaufen kann: 5.000 zerlegte Fahrzeuge,
+drei Neugründungen, ein unbekanntes Metall im Schrott. Das **Forschungslabor** hat 10
+Ausbaustufen und bestimmt Tempo, Punkte, erreichbare Technologiestufe und parallele Projekte.
+
+**Prestige** mit drei unabhängigen Türen (Firmenwert, vollständige Automatisierung, 90 %
+Forschung), **Industriepunkten** und einem Baum aus fünf Zweigen. Jeder Durchlauf macht die
+Welt etwas teurer und die Belohnungen deutlich größer. **Endgame-Inhalte** ab der ersten
+Neugründung: internationaler Handel, Schiffsrecycling, Flugzeugfriedhof, Weltraumschrott und
+die orbitale Recyclingstation.
+
+**Zwölf Erfolge** mit Titeln und bewusst winzigen Dauerboni, 100+ Kaufobjekte.
 
 **Unternehmen statt Maschinenpark** — Mitarbeiter kosten Gehalt, sammeln Erfahrung (10 Stufen)
 und werden dadurch besser; Gebäude kosten Unterhalt. Wer die Löhne nicht zahlen kann, verliert
@@ -89,7 +104,7 @@ Speicherstände sind versioniert, werden beim Laden saniert und überstehen Inha
 
 ## Stand
 
-Spielbarer Prototyp. Die Kapitel 1 bis 6 des GDD sind umgesetzt; Kapitel 7 ff. sind noch offen.
+Spielbarer Prototyp. Die Kapitel 1 bis 7 des GDD sind umgesetzt; Kapitel 8 ff. sind noch offen.
 
 Bewusst noch nicht enthalten: **Ton**. Das GDD nennt Metallgeräusche als Feedback — der Prototyp
 liefert stattdessen Partikel, schwebende Beträge, Fortschrittsbalken und optionale Vibration.

@@ -10,6 +10,8 @@ export interface OfflineReport {
   moneyGained: number;
   /** Grid factor while away - shown in the return report. */
   powerFactor: number;
+  /** Automated output factor that was actually applied. */
+  efficiency: number;
   vehiclesDone: number;
   materialsGained: number;
 }
@@ -33,10 +35,14 @@ export function simulateOffline(game: Game, awaySeconds: number): OfflineReport 
   const vehiclesBefore = game.state.progressStats.vehiclesDone;
   const partsBefore = game.state.progressStats.partsRemoved;
 
+  // Offline runs at reduced efficiency so being online stays the better
+  // option - but the Autonome Fabrik (GDD chapter 7) buys that gap back.
+  const efficiency = Math.min(1, BALANCE.offline.efficiency * game.stats.mult.offlineRate);
+
   const chunks = Math.min(BALANCE.offline.maxChunks, Math.max(1, Math.ceil(seconds / 5)));
   const dt = seconds / chunks;
   for (let i = 0; i < chunks; i++) {
-    game.tick(dt, BALANCE.offline.efficiency);
+    game.tick(dt, efficiency);
   }
 
   return {
@@ -45,6 +51,7 @@ export function simulateOffline(game: Game, awaySeconds: number): OfflineReport 
     capped: awaySeconds > limit,
     moneyGained: game.state.lifetimeEarned - moneyBefore,
     powerFactor: game.stats.power.factor,
+    efficiency,
     vehiclesDone: game.state.progressStats.vehiclesDone - vehiclesBefore,
     materialsGained: game.state.progressStats.partsRemoved - partsBefore,
   };

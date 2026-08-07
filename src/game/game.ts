@@ -2,7 +2,7 @@ import { BALANCE } from '../data/balance';
 import { Content } from '../data';
 import { EventBus } from '../core/events';
 import { chance, randInt } from '../core/rng';
-import { computeStats, meetsRequirement, nextCost, nextPerkCost, type Stats } from './stats';
+import { computeStats, meetsRequirement, nextCost, type Stats } from './stats';
 import { createInitialState, owned, storedTotal, xpForLevel, type ActiveVehicle, type GameState } from './state';
 import { runLogistics } from './systems/logistics';
 import { runProcessing } from './systems/processing';
@@ -17,6 +17,24 @@ import { reservedMaterials } from '../economy/contracts';
 import { payrollFactor, tickPayroll } from '../company/payroll';
 import { tickMetrics } from '../company/statistics';
 import { sellableAmount } from '../company/warehouse';
+import {
+  canStart as canStartResearch,
+  finishResearch,
+  startResearch,
+  tickResearch,
+} from '../progress/research';
+import { buyPerk, canPrestige, doPrestige, pointsGain } from '../progress/prestige';
+import { check as checkAchievements, tickAchievements } from '../progress/achievements';
+
+/**
+ * Largest value any running total may reach. Well below `Number.MAX_VALUE`, so
+ * a few more additions or a multiplication still stay finite.
+ */
+const MAX_VALUE = 1e280;
+
+function clampTotal(value: number): number {
+  return Number.isFinite(value) ? Math.min(value, MAX_VALUE) : MAX_VALUE;
+}
 
 /**
  * The game orchestrator. Owns the state, the derived stats and the fixed-step
@@ -127,30 +145,21 @@ export class Game {
     return !!def && meetsRequirement(this.state, this.stats, def.requires);
   }
 
-  /** Reputation the player would gain by restarting the company now. */
-  prestigeGain(): number {
-    const { divisor, exponent } = BALANCE.prestige;
-    if (this.state.runEarned <= 0) return 0;
-    return Math.floor(Math.pow(this.state.runEarned / divisor, exponent));
-  }
-
-  canPrestige(): boolean {
-    return (
-      this.state.level >= BALANCE.prestige.requiredLevel &&
-      this.prestigeGain() >= BALANCE.prestige.minReputation
-    );
-  }
 
   // -------------------------------------------------------------------------
   // Resource helpers
   // -------------------------------------------------------------------------
 
   addMoney(amount: number): void {
-    if (amount <= 0) return;
-    this.state.money += amount;
-    this.state.runEarned += amount;
-    this.state.lifetimeEarned += amount;
-    this.state.metrics.dayEarned += amount;
+    if (!(amount > 0)) return;
+    // Idle curves are exponential by design, but a value that reaches Infinity
+    // turns into NaN on the next subtraction and takes the save with it. Every
+    // running total is therefore clamped to a large-but-finite ceiling.
+    const gain = Math.min(amount, MAX_VALUE);
+    this.state.money = clampTotal(this.state.money + gain);
+    this.state.runEarned = clampTotal(this.state.runEarned + gain);
+    this.state.lifetimeEarned = clampTotal(this.state.lifetimeEarned + gain);
+    this.state.metrics.dayEarned = clampTotal(this.state.metrics.dayEarned + gain);
   }
 
   spendMoney(amount: number): boolean {
@@ -166,11 +175,14 @@ export class Game {
    * but a full yard costs margin, which keeps storage upgrades worth buying.
    */
   addMaterial(materialId: string, amount: number): void {
-    if (amount <= 0) return;
+    if (!(amount > 0)) return;
+    amount = Math.min(amount, MAX_VALUE);
     const free = this.storageFree();
     const fits = Math.min(amount, free);
     if (fits > 0) addToStorage(this.state, materialId, fits, this.rollQuality());
-    this.state.metrics.unitsRecycled += amount;
+    this.state.metrics.unitsRecycled = clampTotal(this.state.metrics.unitsRecycled + amount);
+    const totals = this.state.progressStats.materials;
+    totals[materialId] = clampTotal((totals[materialId] ?? 0) + amount);
 
     const overflow = amount - fits;
     if (overflow <= 0) return;
@@ -205,8 +217,8 @@ export class Game {
   }
 
   addXp(amount: number): void {
-    if (amount <= 0) return;
-    this.state.xp += amount * this.stats.mult.xpGain;
+    if (!(amount > 0)) return;
+    this.state.xp = clampTotal(this.state.xp + Math.min(amount * this.stats.mult.xpGain, MAX_VALUE));
     let levelled = false;
     while (this.state.xp >= xpForLevel(this.state.level)) {
       this.state.xp -= xpForLevel(this.state.level);
@@ -359,73 +371,48 @@ export class Game {
     return true;
   }
 
+  // -------------------------------------------------------------------------
+  // Long-term progression (GDD chapter 7)
+  //
+  // The orchestrator only forwards here: research, prestige and achievements
+  // each own their rules in `src/progress/`, so they can be tested and
+  // extended without touching the game loop.
+  // -------------------------------------------------------------------------
+
   canResearch(id: string): boolean {
-    const node = Content.researchNode(id);
-    if (!node) return false;
-    if (this.state.research.done.includes(id)) return false;
-    if (this.state.research.active) return false;
-    if (!this.stats.unlocks.has('research')) return false;
-    if (!meetsRequirement(this.state, this.stats, node.requires)) return false;
-    return this.state.money >= node.cost;
+    return canStartResearch(this, id);
   }
 
   startResearch(id: string): boolean {
-    const node = Content.researchNode(id);
-    if (!node || !this.canResearch(id)) return false;
-    if (!this.spendMoney(node.cost)) return false;
-    if (node.duration <= 0) {
-      this.finishResearch(id);
-    } else {
-      this.state.research.active = { id, remaining: node.duration };
-      this.bus.emit('notice', { text: `Forschung gestartet: ${node.name}`, icon: '🔬', tone: 'info' });
-    }
-    this.bus.emit('changed', undefined);
-    return true;
+    return startResearch(this, id);
   }
 
-  finishResearch(id: string): void {
-    const node = Content.researchNode(id);
-    if (!node) return;
-    if (!this.state.research.done.includes(id)) this.state.research.done.push(id);
-    this.state.research.active = null;
-    this.recompute();
-    this.bus.emit('notice', { text: `Forschung fertig: ${node.name}`, icon: '🔬', tone: 'good' });
-    this.bus.emit('progress', undefined);
+  finishResearch(id: string, level = (this.state.research.techs[id] ?? 0) + 1): void {
+    finishResearch(this, id, level);
+  }
+
+  /** Level the player has reached in one technology. */
+  techLevel(id: string): number {
+    return this.state.research.techs[id] ?? 0;
   }
 
   buyPerk(id: string): boolean {
-    const perk = Content.perk(id);
-    if (!perk) return false;
-    const level = this.state.prestige.perks[id] ?? 0;
-    if (level >= perk.maxLevel) return false;
-    const cost = nextPerkCost(this.state, id);
-    if (this.state.prestige.reputation < cost) return false;
-    this.state.prestige.reputation -= cost;
-    this.state.prestige.perks[id] = level + 1;
-    this.recompute();
-    this.bus.emit('notice', { text: `${perk.name} verbessert`, icon: perk.icon, tone: 'good' });
-    return true;
+    return buyPerk(this, id);
   }
 
-  /** Restarts the company, keeping reputation and perks. */
-  doPrestige(): boolean {
-    if (!this.canPrestige()) return false;
-    const gain = this.prestigeGain();
-    const carried = {
-      reputation: this.state.prestige.reputation + gain,
-      perks: { ...this.state.prestige.perks },
-      runs: this.state.prestige.runs + 1,
-      bestRun: Math.max(this.state.prestige.bestRun, this.state.runEarned),
-    };
-    const lifetime = this.state.lifetimeEarned;
-    const discovered = this.state.progressStats.discovered;
-    const settings = this.state.settings;
+  /** Industriepunkte a restart would pay out right now. */
+  prestigeGain(): number {
+    return pointsGain(this);
+  }
 
-    this.state = createInitialState(carried);
-    this.state.lifetimeEarned = lifetime;
-    this.state.progressStats.discovered = discovered;
-    this.state.settings = settings;
-    this.state.tutorial = { step: 0, done: true, choiceOffered: true };
+  canPrestige(): boolean {
+    return canPrestige(this);
+  }
+
+  /** Restarts the company, keeping Industriepunkte, the tree and achievements. */
+  doPrestige(): boolean {
+    const gain = this.prestigeGain();
+    if (!doPrestige(this)) return false;
 
     this.autoBuyCredit = 0;
     this.autoSellCredit = 0;
@@ -433,7 +420,12 @@ export class Game {
 
     this.recompute();
     this.loadVehicle(BALANCE.start.starterVehicle);
-    this.bus.emit('notice', { text: `Neues Unternehmen gegründet: +${gain} Reputation`, icon: '🏆', tone: 'good' });
+    checkAchievements(this);
+    this.bus.emit('notice', {
+      text: `Neues Unternehmen gegründet: +${gain} Industriepunkte`,
+      icon: '🏆',
+      tone: 'good',
+    });
     this.bus.emit('progress', undefined);
     return true;
   }
@@ -451,12 +443,7 @@ export class Game {
     if (dt <= 0) return;
     this.state.playtime += dt;
 
-    // Research timer
-    const active = this.state.research.active;
-    if (active) {
-      active.remaining -= dt * this.stats.mult.researchSpeed;
-      if (active.remaining <= 0) this.finishResearch(active.id);
-    }
+    tickResearch(this, dt, efficiency);
 
     runLogistics(this, dt, efficiency);
 
@@ -472,6 +459,7 @@ export class Game {
     runMaintenance(this, dt, working, efficiency);
     tickPayroll(this, dt, working);
     tickMetrics(this, dt);
+    tickAchievements(this, dt);
     this.statsTimer += dt;
     if (this.statsDirty && this.statsTimer >= 0.5) {
       this.statsTimer = 0;

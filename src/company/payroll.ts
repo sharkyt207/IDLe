@@ -38,7 +38,8 @@ export function staffRows(game: Game): StaffRow[] {
       count,
       level,
       xp,
-      wage: (def.salary ?? 0) * count * (1 + (level - 1) * COMPANY.staff.salaryPerLevel),
+      wage:
+        (def.salary ?? 0) * count * (1 + (level - 1) * COMPANY.staff.salaryPerLevel) * game.stats.mult.salary,
     });
   }
   return rows;

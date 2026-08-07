@@ -15,8 +15,12 @@ export interface ActiveVehicle {
 
 export interface ResearchProgress {
   id: string;
+  /** The level being researched. */
+  level: number;
   /** Seconds left. */
   remaining: number;
+  /** Total seconds this project takes - basis for the progress bar. */
+  total: number;
 }
 
 /**
@@ -50,7 +54,19 @@ export interface GameState {
   /** employee id -> accumulated experience. */
   staffXp: Record<string, number>;
 
-  research: { done: string[]; active: ResearchProgress | null };
+  /**
+   * Research (GDD chapter 7). Technologies have levels, not a done flag, and
+   * several projects can run at once once the lab is big enough.
+   */
+  research: {
+    /** Accumulated research points - not buyable with money. */
+    points: number;
+    /** technology id -> level reached. */
+    techs: Record<string, number>;
+    active: ResearchProgress[];
+    /** Milestone keys (`tech@level`) already announced. */
+    seen: string[];
+  };
 
   /** Deliveries bought and waiting for the pad. */
   queue: string[];
@@ -68,11 +84,17 @@ export interface GameState {
   priority: string;
 
   prestige: {
-    reputation: number;
+    /** Industriepunkte, spendable in the prestige tree. */
+    points: number;
+    /** Earned over the whole career - drives titles and rare technologies. */
+    lifetimePoints: number;
     perks: Record<string, number>;
     runs: number;
     bestRun: number;
   };
+
+  /** Achievement ids already earned (GDD chapter 7). */
+  achievements: string[];
 
   /** Contracts and auctions (GDD chapter 4). */
   trade: {
@@ -111,6 +133,8 @@ export interface GameState {
     purchases: number;
     /** Vehicle ids ever dismantled - "alle Fahrzeugtypen entdeckt". */
     discovered: string[];
+    /** material id -> units ever produced. Basis for material achievements. */
+    materials: Record<string, number>;
   };
 
   /** Rolling business metrics for the statistics screen. */
@@ -171,9 +195,12 @@ export interface AuctionState {
   aiMax: number;
 }
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
-export function createInitialState(carryPrestige?: GameState['prestige']): GameState {
+export function createInitialState(
+  carryPrestige?: GameState['prestige'],
+  carryAchievements?: string[],
+): GameState {
   const now = Date.now();
   return {
     version: SAVE_VERSION,
@@ -194,7 +221,7 @@ export function createInitialState(carryPrestige?: GameState['prestige']): GameS
     condition: {},
     staffXp: {},
 
-    research: { done: [], active: null },
+    research: { points: 0, techs: {}, active: [], seen: [] },
 
     queue: [],
     active: null,
@@ -206,7 +233,8 @@ export function createInitialState(carryPrestige?: GameState['prestige']): GameS
     rules: {},
     priority: 'balanced',
 
-    prestige: carryPrestige ?? { reputation: 0, perks: {}, runs: 0, bestRun: 0 },
+    prestige: carryPrestige ?? { points: 0, lifetimePoints: 0, perks: {}, runs: 0, bestRun: 0 },
+    achievements: carryAchievements ?? [],
 
     trade: { offers: [], active: [], offerTimer: 20, auction: null, auctionTimer: 90 },
     collection: {},
@@ -215,7 +243,15 @@ export function createInitialState(carryPrestige?: GameState['prestige']): GameS
 
     tutorial: { step: 0, done: false, choiceOffered: false },
 
-    progressStats: { vehiclesDone: 0, partsRemoved: 0, taps: 0, sales: 0, purchases: 0, discovered: [] },
+    progressStats: {
+      vehiclesDone: 0,
+      partsRemoved: 0,
+      taps: 0,
+      sales: 0,
+      purchases: 0,
+      discovered: [],
+      materials: {},
+    },
 
     metrics: { dayTime: 0, dayEarned: 0, daySpent: 0, dayHistory: [], unitsRecycled: 0, arrears: 0 },
 

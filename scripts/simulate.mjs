@@ -48,6 +48,22 @@ const {
   RoadNetwork,
   MapSystem,
   FLEET,
+  statusOf,
+  startResearch,
+  slotsFree,
+  visibleTechs,
+  techLevelsTotal,
+  techsDone,
+  researchShare,
+  achievementRows,
+  titles,
+  pointsGain,
+  canPrestige,
+  automationRate,
+  gates,
+  canBuyPerk,
+  buyPerk,
+  difficultyFactor,
 } = await import(resolve(outDir, 'sim.mjs'));
 
 const minutes = Number(process.argv[2] ?? 30);
@@ -105,10 +121,28 @@ function invest() {
       .filter((def) => def.maxCount === 1)
       .sort((a, b) => a.baseCost - b.baseCost)[0];
 
+    // The lab is the gate to a whole chapter, so a thinking player builds it
+    // as soon as it is affordable and upgrades it whenever the tree says the
+    // next technology level needs a bigger lab.
+    // The lab is a strategic purchase, so it comes out of the delivery budget
+    // rather than the reinvestment budget - but never out of the payroll float,
+    // which would put the company into arrears the moment it is bought.
+    const labDef =
+      game.canBuy('lab') && game.state.money - nextCost(game.state, 'lab') > runningCosts(game) * 120
+        ? Content.purchasable('lab')
+        : undefined;
+    const labStalled =
+      !!labDef &&
+      visibleTechs(game).some((tech) =>
+        statusOf(game, tech.id).blockers.some((b) => b.startsWith('Labor Stufe')),
+      );
+
     // An underpowered yard throttles every machine - fix the grid first.
     const underPowered = game.stats.power.factor < 1;
 
     const pick =
+      ((game.state.owned['lab'] ?? 0) === 0 && labDef) ||
+      (labStalled && labDef) ||
       unlockBuilding ||
       (underPowered && byGroup('Energie')) ||
       (starving && byGroup('Logistik')) ||
@@ -150,18 +184,19 @@ function chooseDelivery() {
  * long-game loop, so long simulations exercise prestige instead of idling.
  */
 let lastPrestige = 0;
+let prestigeGates = [];
 function maybePrestige() {
-  if (!game.canPrestige()) return;
-  const gain = game.prestigeGain();
-  if (gain < 25 || clock - lastPrestige < 1800) return;
+  if (!canPrestige(game)) return;
+  const gain = pointsGain(game);
+  // A thinking player does not restart the moment the door opens - they finish
+  // what is running first. Restarting on the first open gate wipes a young
+  // technology tree over and over and never lets the late game happen.
+  if (gain < 60 || clock - lastPrestige < 2700) return;
+  prestigeGates.push(gates(game).filter((g) => g.met).map((g) => g.id));
   game.doPrestige();
   lastPrestige = clock;
-  events.push([clock, `Neu gegründet (+${gain} Reputation)`]);
-  // Spend the reputation immediately - permanent bonuses are always worth it.
-  for (let guard = 0; guard < 60; guard++) {
-    const perk = Content.perks.find((p) => game.buyPerk(p.id));
-    if (!perk) break;
-  }
+  events.push([clock, `Neu gegründet (+${gain} Industriepunkte)`]);
+  spendPoints();
 }
 
 /**
@@ -243,14 +278,55 @@ function maintain() {
   }
 }
 
-/** Starts whatever research is affordable - it is always a permanent gain. */
+/**
+ * Research policy (GDD chapter 7): keep every lab slot busy, cheapest first.
+ * Research points cannot be bought, so the bot never "saves up" - an idle lab
+ * slot is pure waste.
+ */
+let techLevelsStarted = 0;
 function research() {
-  if (game.state.research.active) return;
-  const node = Content.research
-    .filter((n) => game.canResearch(n.id))
-    .sort((a, b) => a.cost - b.cost)[0];
-  if (node && game.startResearch(node.id)) {
-    events.push([clock, `Forschung: ${node.name}`]);
+  for (let guard = 0; guard < 4 && slotsFree(game) > 0; guard++) {
+    const options = visibleTechs(game)
+      .map((tech) => ({ tech, status: statusOf(game, tech.id) }))
+      .filter((entry) => entry.status.canStart)
+      .sort((a, b) => a.status.cost.points - b.status.cost.points);
+    const pick = options[0];
+    if (!pick) return;
+    if (!startResearch(game, pick.tech.id)) return;
+    techLevelsStarted++;
+    if (pick.status.level === 0) events.push([clock, `Forschung: ${pick.tech.name}`]);
+  }
+}
+
+/** Buys the cheapest affordable prestige node - a point sitting unspent is idle. */
+function spendPoints() {
+  for (let guard = 0; guard < 20; guard++) {
+    const perk = Content.perks
+      .filter((p) => canBuyPerk(game, p.id))
+      .sort((a, b) => a.cost - b.cost)[0];
+    if (!perk || !buyPerk(game, perk.id)) return;
+  }
+}
+
+/** Peak research state - a restart wipes the tree, so track the high-water mark. */
+let bestTechLevels = 0;
+let bestTechCount = 0;
+let milestonesHit = 0;
+let labBuilt = false;
+function watchResearch() {
+  bestTechLevels = Math.max(bestTechLevels, techLevelsTotal(game.state));
+  bestTechCount = Math.max(bestTechCount, techsDone(game.state));
+  milestonesHit = Math.max(milestonesHit, game.state.research.seen.length);
+  if ((game.state.owned['lab'] ?? 0) > 0) labBuilt = true;
+}
+
+/** Watches for newly earned achievements so the timeline shows them. */
+const seenAchievements = new Set();
+function watchAchievements() {
+  for (const id of game.state.achievements) {
+    if (seenAchievements.has(id)) continue;
+    seenAchievements.add(id);
+    events.push([clock, `Erfolg: ${Content.achievement(id)?.name ?? id}`]);
   }
 }
 
@@ -284,6 +360,9 @@ for (let step = 0; step < totalSteps; step++) {
     trade();
     maintain();
     watchStaff();
+    watchAchievements();
+    watchResearch();
+    spendPoints();
     choosePriority();
     invest();
     maybePrestige();
@@ -318,9 +397,17 @@ console.log('  Verkauf/s          ', game.stats.autoSellPerSec.toFixed(1));
 console.log('  Ankauf/min         ', game.stats.autoBuyPerMinute.toFixed(1));
 console.log('  Lagerplätze        ', game.stats.storage);
 console.log('  Verschiedene Käufe ', seen.size);
-console.log('  Forschungen        ', game.state.research.done.length);
-console.log('  Reputation möglich ', game.prestigeGain());
-console.log('  Neugründungen      ', game.state.prestige.runs);
+console.log('  Technologiestufen  ', techLevelsTotal(game.state), '· Technologien', techsDone(game.state),
+  '/', Content.research.length, `(${Math.round(researchShare(game.state) * 100)} % des Baums)`);
+console.log('  Bestwert Forschung ', bestTechLevels, 'Stufen ·', bestTechCount, 'Technologien ·',
+  milestonesHit, 'Meilensteine');
+console.log('  Forschungspunkte   ', Math.round(game.state.research.points),
+  '· Zuwachs', game.stats.researchPointsPerSec.toFixed(2), '/s');
+console.log('  Industriepunkte    ', game.state.prestige.points, '· möglich bei Neustart', pointsGain(game));
+console.log('  Neugründungen      ', game.state.prestige.runs, '· Kosten ×' + difficultyFactor(game.state.prestige.runs).toFixed(2));
+console.log('  Automatisierung    ', Math.round(automationRate(game) * 100), '%',
+  '· offen:', gates(game).filter((g) => !g.met).map((g) => `${g.id} ${Math.round(g.progress * 100)}%`).join(', ') || 'keine');
+if (prestigeGates.length > 0) console.log('  Prestige-Türen     ', prestigeGates.map((g) => g.join('+')).join(' · '));
 const lots = Content.purchasables.filter((d) => d.category === 'lot' && (game.state.owned[d.id] ?? 0) > 0);
 const decor = Content.purchasables.filter((d) => d.category === 'decor' && (game.state.owned[d.id] ?? 0) > 0);
 console.log('  Grundstücke        ', lots.length, '/', Content.purchasables.filter((d) => d.category === 'lot').length);
@@ -328,6 +415,11 @@ console.log('  Deko-Arten         ', decor.length);
 console.log('  Firmenwert         ', Math.round(companyValue(game)).toLocaleString('de-DE'), '€');
 console.log('  Verträge erfüllt   ', contractsDone);
 console.log('  Fundstücke         ', Object.values(game.state.collection).reduce((a, b) => a + b, 0));
+const achievements = achievementRows(game);
+const earnedAchievements = achievements.filter((r) => r.earned);
+console.log('  Erfolge            ', earnedAchievements.length, '/', achievements.length,
+  earnedAchievements.length > 0 ? '· ' + titles(game).join(', ') : '');
+
 const quality = ['Schlecht', 'Normal', 'Gut', 'Hochwertig', 'Rein'][Math.min(4, Math.floor(game.stats.quality * 5))];
 console.log('  Materialqualität   ', quality);
 const machines = machineList(game);
@@ -390,6 +482,29 @@ check('Laufende Kosten tragbar (<50 % Umsatz)', costs < revenuePerSec * 0.5,
 check('Prioritäten wirken', priorityChanges >= 1, `${priorityChanges} Wechsel`);
 check('Alle Grundstücke ans Straßennetz angebunden', reachable === lotsWithRoad.length,
   `${reachable}/${lotsWithRoad.length}`);
+check('Forschungslabor gebaut', labBuilt, labBuilt ? 'ja' : 'nie');
+check('Forschung läuft in der ersten Sitzung', bestTechLevels >= 1, `${bestTechLevels} Stufen`);
+// Milestones and a broad tree are a second-session promise, not a first one.
+check(
+  'Technologiebaum wächst',
+  minutes < 60 || bestTechLevels >= 5,
+  `${bestTechLevels} Stufen in ${bestTechCount} Technologien`,
+);
+check(
+  'Technologie-Meilenstein erreicht',
+  minutes < 60 || milestonesHit >= 1,
+  `${milestonesHit} Meilensteine`,
+);
+check(
+  'Erfolge freigeschaltet',
+  earnedAchievements.length >= (minutes < 60 ? 2 : 5),
+  `${earnedAchievements.length} Erfolge`,
+);
+check(
+  'Prestige erreichbar',
+  minutes < 90 || game.state.prestige.runs >= 1 || canPrestige(game),
+  `${game.state.prestige.runs} Neugründungen`,
+);
 
 function check(label, ok, detail) {
   console.log(`  ${ok ? '✅' : '❌'} ${label} — ${detail}`);

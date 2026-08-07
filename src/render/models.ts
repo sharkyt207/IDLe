@@ -86,6 +86,22 @@ export const MODELS: Record<string, ModelSpec> = {
   crane_port: { height: [2.2], color: ['#4a6a80'], detail: 'gantry', lit: true },
   antenna_tower: { height: [3.2, 3.6, 4, 4.4, 4.8], color: ['#c8d2dc'], detail: 'antenna', lit: true },
 
+  // --- endgame (GDD chapter 7) --------------------------------------------
+  office_tower: {
+    height: [3.4, 4.2, 5, 5.8, 6.6],
+    color: ['#5a7ea0', '#6a8fb0', '#7aa0c0', '#8ab2d0', '#9ac6e4'],
+    lit: true,
+  },
+  dock: { height: [1.4, 1.8, 2.2, 2.6, 3], color: ['#3f6478'], detail: 'gantry', lit: true },
+  hangar: { height: [2.6, 3, 3.4, 3.8, 4.2], color: ['#7f8894'], roof: '#a3b0bc', lit: true },
+  radar: { height: [3.6, 4.2, 4.8, 5.4, 6], color: ['#8fa8bc'], detail: 'antenna', lit: true },
+  orbital: {
+    height: [4, 4.8, 5.6, 6.4, 7.2],
+    color: ['#8fd8e6', '#9adde9', '#a6e2ec', '#b2e7ef', '#c0ecf3'],
+    detail: 'antenna',
+    lit: true,
+  },
+
   // --- fixtures -----------------------------------------------------------
   scale: { w: 2, d: 2, height: [0.18], color: ['#5a5a5a'], detail: 'scale', flat: true },
   office_container: { w: 2, d: 1, height: [1], color: ['#5f7f9a'], lit: true },
