@@ -1,4 +1,5 @@
 import { Content } from '../data';
+import { t } from '../core/i18n';
 import { money } from '../core/format';
 import type { Game } from '../game/game';
 import { nextCost } from '../game/stats';
@@ -21,36 +22,36 @@ interface Step {
 const STEPS: Step[] = [
   {
     icon: '👆',
-    title: 'Tippe auf die markierten Teile',
-    text: 'Jeder Tipp löst ein Fahrzeugteil und bringt Material.',
+    title: 'tutorial.tap.title',
+    text: 'tutorial.tap.text',
     tab: 'yard',
     done: (g) => g.state.progressStats.partsRemoved >= 1,
   },
   {
     icon: '🚗',
-    title: 'Zerlege das ganze Fahrzeug',
-    text: 'Entferne alle Teile, dann ist der Kleinwagen erledigt.',
+    title: 'tutorial.finish.title',
+    text: 'tutorial.finish.text',
     tab: 'yard',
     done: (g) => g.state.progressStats.vehiclesDone >= 1,
   },
   {
     icon: '💶',
-    title: 'Verkaufe deine Materialien',
-    text: 'Öffne das Lager und mache aus Schrott Geld.',
+    title: 'tutorial.sell.title',
+    text: 'tutorial.sell.text',
     tab: 'storage',
     done: (g) => g.state.progressStats.sales >= 1,
   },
   {
     icon: '🛒',
-    title: 'Kaufe neuen Schrott an',
-    text: 'Im Ankauf bestellst du die nächste Lieferung.',
+    title: 'tutorial.buy.title',
+    text: 'tutorial.buy.text',
     tab: 'market',
     done: (g) => g.state.progressStats.purchases >= 1,
   },
   {
     icon: '🛠️',
-    title: 'Kaufe dein erstes Upgrade',
-    text: 'Im Ausbau wird aus Gewinn dauerhafte Leistung.',
+    title: 'tutorial.upgrade.title',
+    text: 'tutorial.upgrade.text',
     tab: 'build',
     done: (g) => Object.values(g.state.owned).reduce((sum, n) => sum + n, 0) >= 2,
   },
@@ -76,35 +77,35 @@ export class Tutorial {
 
   /** Advances the script and re-renders the coach mark. */
   update(): void {
-    const t = this.game.state.tutorial;
-    if (t.done) {
+    const tut = this.game.state.tutorial;
+    if (tut.done) {
       this.setCoaching(false);
       this.root.replaceChildren();
       return;
     }
 
-    while (t.step < STEPS.length && STEPS[t.step].done(this.game)) {
-      t.step++;
+    while (tut.step < STEPS.length && STEPS[tut.step].done(this.game)) {
+      tut.step++;
       // The reward moment: after the first finished vehicle, pick a free upgrade.
-      if (t.step === 2 && !t.choiceOffered) {
-        t.choiceOffered = true;
+      if (tut.step === 2 && !tut.choiceOffered) {
+        tut.choiceOffered = true;
         this.offerFirstChoice();
       }
     }
 
-    if (t.step >= STEPS.length) {
-      t.done = true;
+    if (tut.step >= STEPS.length) {
+      tut.done = true;
       this.setCoaching(false);
       this.root.replaceChildren();
       this.game.bus.emit('notice', {
-        text: 'Einführung abgeschlossen — der Hof gehört dir!',
+        text: t('tutorial.complete'),
         icon: '🎉',
         tone: 'good',
       });
       return;
     }
 
-    this.render(STEPS[t.step]);
+    this.render(STEPS[tut.step]);
   }
 
   private render(step: Step): void {
@@ -117,8 +118,9 @@ export class Tutorial {
     const coach = el('div', 'coach');
     coach.appendChild(el('div', 'coach-icon', step.icon));
     const body = el('div');
-    body.appendChild(el('b', undefined, step.title));
-    body.appendChild(el('span', undefined, step.text));
+    // Steps carry i18n keys, not text (GDD chapter 9).
+    body.appendChild(el('b', undefined, t(step.title)));
+    body.appendChild(el('span', undefined, t(step.text)));
     coach.appendChild(body);
     coach.addEventListener('click', () => this.navigate(step.tab));
     this.root.replaceChildren(coach);
@@ -147,8 +149,8 @@ export class Tutorial {
     }
 
     const close = openModal({
-      title: 'Erstes Upgrade — geschenkt',
-      body: 'Dein erstes Fahrzeug ist zerlegt. Wähle, womit dein Schrottplatz wächst. Es gibt keine falsche Entscheidung — alles andere kannst du später ebenfalls kaufen.',
+      title: t('tutorial.choiceTitle'),
+      body: t('tutorial.choiceBody'),
       content,
       dismissable: false,
       onClose: () => {

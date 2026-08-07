@@ -1,4 +1,5 @@
 import { Content } from '../../data';
+import { t } from '../../core/i18n';
 import { fmt, rate, units } from '../../core/format';
 import type { PurchaseCategory } from '../../data/types';
 import type { Game } from '../../game/game';
@@ -12,20 +13,20 @@ import { clear, el } from '../dom';
 import type { Screen } from '../screen';
 
 const TABS: { id: PurchaseCategory; label: string; icon: string }[] = [
-  { id: 'machine', label: 'Maschinen', icon: '🤖' },
-  { id: 'line', label: 'Linien', icon: '🏭' },
-  { id: 'power', label: 'Energie', icon: '⚡' },
-  { id: 'employee', label: 'Team', icon: '👷' },
-  { id: 'building', label: 'Gelände', icon: '🏢' },
-  { id: 'lot', label: 'Grundstück', icon: '🗺️' },
-  { id: 'tool', label: 'Werkzeug', icon: '🔨' },
-  { id: 'decor', label: 'Deko', icon: '🌳' },
+  { id: 'machine', label: 'build.tab.machine', icon: '🤖' },
+  { id: 'line', label: 'build.tab.line', icon: '🏭' },
+  { id: 'power', label: 'build.tab.power', icon: '⚡' },
+  { id: 'employee', label: 'build.tab.employee', icon: '👷' },
+  { id: 'building', label: 'build.tab.building', icon: '🏢' },
+  { id: 'lot', label: 'build.tab.lot', icon: '🗺️' },
+  { id: 'tool', label: 'build.tab.tool', icon: '🔨' },
+  { id: 'decor', label: 'build.tab.decor', icon: '🌳' },
 ];
 
 /** Ausbau: everything the player can buy, grouped by category. */
 export class BuildScreen implements Screen {
   readonly id = 'build';
-  readonly label = 'Ausbau';
+  readonly label = 'nav.sub.build';
   readonly icon = '🛠️';
   readonly root = el('div', 'screen');
 
@@ -52,7 +53,7 @@ export class BuildScreen implements Screen {
     const tabs = el('div', 'btn-row seg-row');
     for (const tab of TABS) {
       const btn = el('button', this.tab === tab.id ? 'primary' : 'ghost');
-      btn.innerHTML = `${tab.icon}<span class="price">${tab.label}</span>`;
+      btn.innerHTML = `${tab.icon}<span class="price">${t(tab.label)}</span>`;
       btn.addEventListener('click', () => {
         this.tab = tab.id;
         this.refresh();

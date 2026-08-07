@@ -1,6 +1,7 @@
 import { THEMES, UI } from '../../data/ui';
+import { availableLocales, setLocale, t } from '../../core/i18n';
 import type { Game } from '../../game/game';
-import { clearSave, exportSave, importSave } from '../../game/save';
+import { clearSave, exportSave, importSave, saveGame } from '../../game/save';
 import type { SoundSystem } from '../../audio/sound';
 import { SOUND_PREVIEW } from '../../audio/sound';
 import { applyTheme, clampScale } from '../theme';
@@ -11,6 +12,7 @@ import {
   primaryButton,
   secondaryButton,
   sectionTitle,
+  segmentRow,
 } from '../components';
 import { clear, el } from '../dom';
 import type { Screen } from '../screen';
@@ -27,7 +29,7 @@ import type { Screen } from '../screen';
  */
 export class SettingsScreen implements Screen {
   readonly id = 'settings';
-  readonly label = 'Einstellungen';
+  readonly label = 'nav.settings';
   readonly icon = '⚙️';
   readonly root = el('div', 'screen');
 
@@ -40,13 +42,16 @@ export class SettingsScreen implements Screen {
   ) {}
 
   private apply(): void {
+    setLocale(this.game.state.settings.locale);
     applyTheme(this.game.state.settings);
     this.sound.update(this.game.state.settings);
+    this.onReset?.();
     this.refresh();
   }
 
   refresh(): void {
     clear(this.root);
+    this.renderLanguage();
     this.renderThemes();
     this.renderDisplay();
     this.renderAudio();
@@ -55,9 +60,25 @@ export class SettingsScreen implements Screen {
 
   // ---------------------------------------------------------------------------
 
+  /** Language picker (GDD chapter 9). Applies immediately, like everything else. */
+  private renderLanguage(): void {
+    const { game, root } = this;
+    root.appendChild(sectionTitle(t('settings.language')));
+    root.appendChild(
+      segmentRow(
+        availableLocales().map((l) => ({ id: l.id, label: l.name, icon: l.flag })),
+        game.state.settings.locale,
+        (id) => {
+          game.state.settings.locale = id;
+          this.apply();
+        },
+      ),
+    );
+  }
+
   private renderThemes(): void {
     const { game, root } = this;
-    root.appendChild(sectionTitle('Darstellung'));
+    root.appendChild(sectionTitle(t('settings.display')));
 
     for (const theme of THEMES) {
       const active = game.state.settings.theme === theme.id;
@@ -68,9 +89,9 @@ export class SettingsScreen implements Screen {
         accent: theme.palette.blue,
         actions: [
           active
-            ? secondaryButton({ label: 'Aktiv', icon: '✔', tone: 'good', disabled: true })
+            ? secondaryButton({ label: t('common.active'), icon: '✔', tone: 'good', disabled: true })
             : primaryButton({
-                label: 'Wählen',
+                label: t('common.choose'),
                 onClick: () => {
                   game.state.settings.theme = theme.id;
                   this.apply();
@@ -85,14 +106,14 @@ export class SettingsScreen implements Screen {
   private renderDisplay(): void {
     const { game, root } = this;
     const s = game.state.settings;
-    root.appendChild(sectionTitle('Bedienung & Barrierefreiheit'));
+    root.appendChild(sectionTitle(t('settings.accessibility')));
 
     // UI scale, 80–150 %.
     const scaleCard = el('div', 'card');
     const scaleBody = el('div', 'card-body');
-    scaleBody.appendChild(el('div', 'card-title', `Oberflächengröße: ${Math.round(s.uiScale * 100)} %`));
+    scaleBody.appendChild(el('div', 'card-title', t('settings.uiScale', { percent: Math.round(s.uiScale * 100) })));
     scaleBody.appendChild(
-      el('div', 'card-desc', `Zwischen ${UI.scale.min * 100} % und ${UI.scale.max * 100} % frei einstellbar.`),
+      el('div', 'card-desc', t('settings.uiScaleDesc', { min: UI.scale.min * 100, max: UI.scale.max * 100 })),
     );
     scaleBody.appendChild(
       slider(UI.scale.min, UI.scale.max, UI.scale.step, s.uiScale, (value) => {
@@ -104,7 +125,7 @@ export class SettingsScreen implements Screen {
 
     const scaleActions = el('div', 'card-actions');
     scaleActions.appendChild(
-      iconButton('↺', 'Zurücksetzen', () => {
+      iconButton('↺', t('common.reset'), () => {
         s.uiScale = UI.scale.default;
         this.apply();
       }),
@@ -113,7 +134,7 @@ export class SettingsScreen implements Screen {
     root.appendChild(scaleCard);
 
     root.appendChild(
-      this.toggle('🎨', 'Farbenblind-Modus', 'Ersetzt Rot/Grün durch Blau/Orange.', s.colorblind, () => {
+      this.toggle('🎨', t('settings.colorblind'), t('settings.colorblindDesc'), s.colorblind, () => {
         s.colorblind = !s.colorblind;
         this.apply();
       }),
@@ -121,8 +142,8 @@ export class SettingsScreen implements Screen {
     root.appendChild(
       this.toggle(
         '✨',
-        'Reduzierte Effekte',
-        'Weniger Partikel und ruhigere Animationen. Hilft auch auf schwächeren Geräten.',
+        t('settings.reducedEffects'),
+        t('settings.reducedEffectsDesc'),
         s.reducedEffects,
         () => {
           s.reducedEffects = !s.reducedEffects;
@@ -131,7 +152,7 @@ export class SettingsScreen implements Screen {
       ),
     );
     root.appendChild(
-      this.toggle('📳', 'Vibration', 'Kurzes Feedback beim Zerlegen.', s.haptics, () => {
+      this.toggle('📳', t('settings.haptics'), t('settings.hapticsDesc'), s.haptics, () => {
         s.haptics = !s.haptics;
         this.apply();
       }),
@@ -139,8 +160,8 @@ export class SettingsScreen implements Screen {
     root.appendChild(
       this.toggle(
         '🤚',
-        'Linkshänder-Modus',
-        'Legt die Hauptbuttons auf die linke Seite.',
+        t('settings.leftHanded'),
+        t('settings.leftHandedDesc'),
         s.leftHanded,
         () => {
           s.leftHanded = !s.leftHanded;
@@ -153,10 +174,10 @@ export class SettingsScreen implements Screen {
   private renderAudio(): void {
     const { game, root } = this;
     const s = game.state.settings;
-    root.appendChild(sectionTitle('Ton'));
+    root.appendChild(sectionTitle(t('settings.audio')));
 
     root.appendChild(
-      this.toggle('🔊', 'Ton', 'Musik und Effekte insgesamt.', s.sound, () => {
+      this.toggle('🔊', t('settings.sound'), t('settings.soundDesc'), s.sound, () => {
         s.sound = !s.sound;
         this.apply();
       }),
@@ -165,9 +186,9 @@ export class SettingsScreen implements Screen {
     if (!s.sound) return;
 
     const volumes: [string, string, 'volumeMusic' | 'volumeEffects' | 'volumeUi'][] = [
-      ['🎵', 'Musik', 'volumeMusic'],
-      ['🏭', 'Effekte', 'volumeEffects'],
-      ['🔘', 'Oberfläche', 'volumeUi'],
+      ['🎵', t('settings.volumeMusic'), 'volumeMusic'],
+      ['🏭', t('settings.volumeEffects'), 'volumeEffects'],
+      ['🔘', t('settings.volumeUi'), 'volumeUi'],
     ];
     for (const [icon, label, key] of volumes) {
       const card = el('div', 'card');
@@ -195,12 +216,22 @@ export class SettingsScreen implements Screen {
 
   private renderSave(): void {
     const { game, root } = this;
-    root.appendChild(sectionTitle('Spielstand'));
+    root.appendChild(sectionTitle(t('settings.save')));
 
     const row = el('div', 'btn-row');
     row.appendChild(
+      primaryButton({
+        label: t('settings.saveNow'),
+        icon: '💾',
+        onClick: () => {
+          saveGame(game.state);
+          game.bus.emit('saved', { manual: true });
+        },
+      }),
+    );
+    row.appendChild(
       secondaryButton({
-        label: 'Exportieren',
+        label: t('settings.export'),
         icon: '📤',
         onClick: () => {
           const content = el('div');
@@ -208,27 +239,27 @@ export class SettingsScreen implements Screen {
           area.value = exportSave(game.state);
           area.readOnly = true;
           content.appendChild(area);
-          dialog({ title: 'Spielstand', icon: '📤', body: 'Kopiere diesen Text als Sicherung.', content });
+          dialog({ title: t('settings.save'), icon: '📤', body: t('settings.exportBody'), content });
         },
       }),
     );
     row.appendChild(
       secondaryButton({
-        label: 'Importieren',
+        label: t('settings.import'),
         icon: '📥',
         onClick: () => {
           const content = el('div');
           const area = el('textarea');
-          area.placeholder = 'Spielstand hier einfügen';
+          area.placeholder = t('settings.importPlaceholder');
           content.appendChild(area);
           content.appendChild(
             primaryButton({
-              label: 'Laden',
+              label: t('common.load'),
               wide: true,
               onClick: () => {
                 const state = importSave(area.value);
                 if (!state) {
-                  game.bus.emit('notice', { text: 'Ungültiger Spielstand', icon: '⚠️', tone: 'warn' });
+                  game.bus.emit('notice', { text: t('settings.importInvalid'), icon: '⚠️', tone: 'warn' });
                   return;
                 }
                 game.state = state;
@@ -238,14 +269,14 @@ export class SettingsScreen implements Screen {
               },
             }),
           );
-          const close = dialog({ title: 'Spielstand importieren', icon: '📥', content });
+          const close = dialog({ title: t('settings.importTitle'), icon: '📥', content });
         },
       }),
     );
     root.appendChild(row);
 
     const reset = secondaryButton({
-      label: 'Alles zurücksetzen',
+      label: t('settings.resetAll'),
       icon: '🗑️',
       tone: 'bad',
       wide: true,
@@ -253,7 +284,7 @@ export class SettingsScreen implements Screen {
         const content = el('div');
         content.appendChild(
           primaryButton({
-            label: 'Ja, alles löschen',
+            label: t('settings.resetYes'),
             tone: 'bad',
             wide: true,
             onClick: () => {
@@ -263,9 +294,9 @@ export class SettingsScreen implements Screen {
           }),
         );
         dialog({
-          title: 'Wirklich alles löschen?',
+          title: t('settings.resetTitle'),
           icon: '⚠️',
-          body: 'Der komplette Fortschritt inklusive Industriepunkte und Erfolge geht verloren.',
+          body: t('settings.resetBody'),
           content,
         });
       },

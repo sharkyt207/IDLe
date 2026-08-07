@@ -1,3 +1,4 @@
+import { t } from '../../core/i18n';
 import { segmentRow } from '../components';
 import { clear, el } from '../dom';
 import type { Screen } from '../screen';
@@ -86,7 +87,7 @@ export class HubScreen implements Screen {
     if (visible.length > 1) {
       this.nav.appendChild(
         segmentRow(
-          visible.map((c) => ({ id: c.id, label: c.label, icon: c.icon })),
+          visible.map((c) => ({ id: c.id, label: c.label.includes('.') ? t(c.label) : c.label, icon: c.icon })),
           active.id,
           (id) => {
             this.show(id);

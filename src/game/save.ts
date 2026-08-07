@@ -1,5 +1,7 @@
 import { Content } from '../data';
 import { THEMES, UI } from '../data/ui';
+import { availableLocales, detectLocale } from '../core/i18n';
+import { log } from '../core/log';
 import { clampScale } from '../ui/theme';
 import { createInitialState, SAVE_VERSION, type GameState } from './state';
 
@@ -51,6 +53,12 @@ const MIGRATIONS: Record<number, Migration> = {
    * this only has to carry the version forward.
    */
   2: (raw) => ({ ...raw, version: 3 }),
+
+  /**
+   * 3 -> 4 (GDD chapter 9): the settings gained a language. `sanitize` falls
+   * back to the browser language, so an existing save simply picks one up.
+   */
+  3: (raw) => ({ ...raw, version: 4 }),
 };
 
 /**
@@ -308,6 +316,9 @@ function sanitize(raw: Record<string, unknown>): GameState {
   const volume = (value: unknown, fallback: number) => Math.max(0, Math.min(1, num(value, fallback)));
   state.settings = {
     haptics: bool(src.settings?.haptics, true),
+    locale: availableLocales().some((l) => l.id === src.settings?.locale)
+      ? String(src.settings?.locale)
+      : detectLocale(),
     theme: THEMES.some((t) => t.id === src.settings?.theme) ? String(src.settings?.theme) : 'standard',
     uiScale: clampScale(num(src.settings?.uiScale, UI.scale.default)),
     colorblind: bool(src.settings?.colorblind, false),
@@ -356,7 +367,7 @@ export function loadGame(): LoadResult | null {
     const awaySeconds = Math.max(0, (Date.now() - state.lastSeen) / 1000);
     return { state, awaySeconds };
   } catch (err) {
-    console.error('[save] beschädigter Speicherstand, starte neu', err);
+    log.error('save', 'beschädigter Speicherstand, starte neu', err);
     try {
       localStorage.setItem(`${KEY}.broken`, text);
     } catch {
@@ -372,7 +383,7 @@ export function saveGame(state: GameState): boolean {
     localStorage.setItem(KEY, JSON.stringify(state));
     return true;
   } catch (err) {
-    console.warn('[save] konnte nicht speichern', err);
+    log.warn('save', 'konnte nicht speichern', err);
     return false;
   }
 }

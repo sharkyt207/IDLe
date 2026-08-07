@@ -1,4 +1,5 @@
 import { RARITY_COLOR, RARITY_NAME, UI, type RarityTier } from '../data/ui';
+import { t } from '../core/i18n';
 import { el, haptic } from './dom';
 
 /**
@@ -262,7 +263,7 @@ export function dialog(options: DialogOptions): () => void {
   if (options.icon) header.appendChild(el('span', 'modal-icon', options.icon));
   header.appendChild(el('h2', undefined, options.title));
   if (options.dismissable !== false) {
-    const x = iconButton('✕', 'Schließen', close);
+    const x = iconButton('✕', t('common.close'), close);
     x.classList.add('modal-close');
     header.appendChild(x);
   }

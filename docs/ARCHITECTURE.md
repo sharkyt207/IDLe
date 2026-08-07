@@ -26,14 +26,23 @@ src/
     ui.ts          Designtokens, Paletten, Themes, Seltenheitsfarben
     index.ts       Registry + Inhalts-Validierung
 
-  core/          Infrastruktur ohne Spiellogik (Events, Formatierung, Zufall)
+  core/          Infrastruktur ohne Spiellogik
+    events.ts      typisierter Bus; ein werfender Listener bricht kein emit ab
+    format.ts      Zahlen, Geld, Dauer (deutsche Notation)
+    rng.ts         Zufall
+    i18n.ts        Lokalisierung: Schlüssel für UI, Overrides für Inhalte
+    log.ts         strukturiertes Protokoll mit Ringpuffer + guard/safeNumber
+    pool.ts        Objekt-Pool für häufig erzeugte Objekte
+
+  locales/       de (Quelle) · en (vollständig) · fr es it pl tr ja (vorbereitet)
 
   game/          Simulation, DOM-frei und damit headless testbar
     state.ts       Serialisierbarer Spielstand
     stats.ts       Leitet aus Besitz/Forschung/Prestige die abgeleiteten Werte ab
     save.ts        Versionierte Speicherstände inkl. Migration & Reparatur
     game.ts        Orchestrator: Aktionen + fester Simulationsschritt
-    systems/       teardown · logistics · market · processing · maintenance · offline
+    systems/       teardown · logistics · market · processing · maintenance
+                   offline · events (Tageswechsel + Zufallsereignisse)
 
   economy/       Wirtschaft (GDD Kapitel 4), unabhängig austauschbare Module
     market.ts      Preismodell: Drift, Qualität, Entsorgung, Trends
@@ -74,6 +83,7 @@ src/
     hud.ts         HUD oben/links/rechts
     details.ts     Detailfenster für Maschinen und Gebäude
     app.ts         Shell: sechs Hauptbereiche, Loop, Autosave, Offline
+    debug.ts       Entwicklermodus (nur Dev-Builds)
     screens/       yard · build · market · storage · trade · research
                    staff · statistics · settings · hub
 ```
@@ -127,6 +137,8 @@ im passenden System.
 | Neue Seltenheitsstufe | `ui.ts` + `types.ts` | keiner |
 | Neues Maschinengeräusch | `audio/sound.ts` (`SOUNDS`) | keiner |
 | Neuer Hauptbereich / Unterscreen | `app.ts` (eine Zeile) | keiner |
+| Neue Sprache | `locales/<id>.ts` + eine Zeile in `locales/index.ts` | keiner |
+| Neues Zufallsereignis | `game/systems/events.ts` (`RANDOM_EVENTS`) | keiner |
 | Neues Gebäudemodell | `models.ts` (Tabelleneintrag) | keiner |
 | Neue Maschine / Linie / Kraftwerk | `purchasables.ts` + Modell in `models.ts` | keiner |
 | Neue **Art** von Wirkung | `types.ts` + `stats.ts` + System | ja, klein |
@@ -290,7 +302,8 @@ Aufnahmen können das später ersetzen, ohne dass Spielcode sich ändert.
 
 ## Leistung auf Mittelklasse-Geräten
 
-- Keine Laufzeit-Abhängigkeiten; Build ≈ 74 kB gzip (JS) + 4 kB CSS, keine Assets.
+- Keine Laufzeit-Abhängigkeiten; Build ≈ 82 kB gzip (JS) + 4 kB CSS, keine Assets.
+- Objekt-Pooling für Partikel und schwebende Zahlen (`core/pool.ts`).
 - Canvas-Zeichnung aus Vektorformen, kein Asset-Laden; DPR auf 2 begrenzt.
 - Nur sichtbare Kacheln, Anlagen, Fahrzeuge und Pakete werden gezeichnet.
 - Animationen und Spawns pausieren, sobald der Hof nicht der aktive Screen ist.
@@ -300,6 +313,28 @@ Aufnahmen können das später ersetzen, ohne dass Spielcode sich ändert.
 - Die Oberfläche baut nur den sichtbaren Screen neu, höchstens viermal pro Sekunde, und stellt
   die Scrollposition wieder her.
 
+## Lokalisierung
+
+Zwei Arten von Text, absichtlich unterschiedlich behandelt: **Oberflächentext** ist von Anfang
+an ein Schlüssel (`t('nav.market')`), **Inhaltstext** bleibt bei seinen Daten und wird per
+Override-Tabelle nach Inhalts-ID übersetzt (`tc('machine', id, 'name', quelle)`). Auch Namen zu
+Schlüsseln zu machen hieße, dass jede neue Maschine zwei Dateien braucht — genau die Reibung,
+die diese Architektur vermeidet.
+
+Deutsch ist die Quelle und der Fallback: ein fehlender Schlüssel zeigt deutschen Text, nie eine
+Lücke. `npm run i18n` meldet den Stand pro Sprache und scannt `src/ui` nach Zeichenketten, die
+nie durch `t()` gelaufen sind.
+
+## Fehlerbehandlung und Werkzeuge
+
+`core/log.ts` hält die letzten 120 Meldungen mit Subsystem in einem Ringpuffer, den der
+Entwicklermodus anzeigt — ein Spieler kann ein Problem lesen, ohne die Devtools zu öffnen.
+`guard()` schützt die zwei Stellen, an denen ein Wurf fatal wäre (Loop, Bus); überall sonst
+soll ein Fehler laut sein.
+
+Der Entwicklermodus (langer Druck auf die obere Leiste) hängt an `import.meta.env.DEV` und
+fällt aus dem Release-Bundle heraus, statt nur versteckt zu sein.
+
 ## Prüfen
 
 ```bash
@@ -307,6 +342,10 @@ npm run typecheck   # strenge TypeScript-Prüfung
 npm run build       # Produktionsbuild
 npm run simulate    # 30-Minuten-Balancing-Lauf gegen die GDD-Zusagen
 npm run simulate -- 180
+npm test            # 8 Browser-Suiten in echtem Chromium (tests/)
+npm test -- ch7 ch8 # nur einzelne Suiten
+npm run i18n        # Übersetzungsstand + Suche nach hartkodiertem Text
+npm run check       # typecheck + simulate + test
 ```
 
 `scripts/simulate.mjs` spielt das Spiel headless in Node (die `game/`-Schicht ist DOM-frei) und

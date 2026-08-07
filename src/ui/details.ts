@@ -1,4 +1,5 @@
 import { Content } from '../data';
+import { t } from '../core/i18n';
 import { MACHINES, conditionFactor, levelMultiplier } from '../data/machines';
 import { RARITY_COLOR, type RarityTier } from '../data/ui';
 import { fmt, money, rate } from '../core/format';
@@ -62,15 +63,15 @@ function body(game: Game, def: PurchasableDef, afterBuy: () => void): HTMLElemen
 
   // --- numbers -------------------------------------------------------------
   const tiles = [
-    statTile(`${level} / ${def.maxCount}`, isMachine ? 'Ausbaustufe' : 'Anzahl'),
-    statTile(money(nextCost(game.state, def.id)), 'Nächste Stufe'),
+    statTile(`${level} / ${def.maxCount}`, isMachine ? t('details.buildLevel') : t('details.count')),
+    statTile(money(nextCost(game.state, def.id)), t('details.nextLevel')),
   ];
 
   const output = effectSummary(def.effects, isMachine ? levelMultiplier(Math.min(level, MACHINES.maxLevel)) : level);
-  if (output.rate) tiles.push(statTile(output.rate, 'Leistung'));
-  if (output.power) tiles.push(statTile(output.power, 'Stromverbrauch'));
-  if (def.upkeep) tiles.push(statTile(rate(def.upkeep * Math.max(1, level), ' €/s'), 'Unterhalt'));
-  if (def.salary) tiles.push(statTile(rate(def.salary * Math.max(1, level), ' €/s'), 'Gehalt'));
+  if (output.rate) tiles.push(statTile(output.rate, t('details.output')));
+  if (output.power) tiles.push(statTile(output.power, t('details.power')));
+  if (def.upkeep) tiles.push(statTile(rate(def.upkeep * Math.max(1, level), ' €/s'), t('details.upkeep')));
+  if (def.salary) tiles.push(statTile(rate(def.salary * Math.max(1, level), ' €/s'), t('details.salary')));
   out.push(statGrid(...tiles));
 
   // --- maintenance ---------------------------------------------------------
@@ -78,7 +79,7 @@ function body(game: Game, def: PurchasableDef, afterBuy: () => void): HTMLElemen
     const card = el('div', 'card');
     const cardBody = el('div', 'card-body');
     const title = el('div', 'card-title');
-    title.appendChild(document.createTextNode('Wartungszustand'));
+    title.appendChild(document.createTextNode(t('details.maintenance')));
     title.appendChild(badge(`${Math.round(condition * 100)} %`, toneOf(condition)));
     cardBody.appendChild(title);
     cardBody.appendChild(progressBar(condition, toneOf(condition)));
@@ -86,14 +87,15 @@ function body(game: Game, def: PurchasableDef, afterBuy: () => void): HTMLElemen
       el(
         'div',
         'card-desc',
-        `Leistung ${Math.round(conditionFactor(condition) * 100)} % · Wiederherstellung kostet ${money(
-          investedIn(game, def) * MACHINES.wear.serviceCostFactor * (1 - condition),
-        )}`,
+        t('details.repairCost', {
+          percent: Math.round(conditionFactor(condition) * 100),
+          cost: money(investedIn(game, def) * MACHINES.wear.serviceCostFactor * (1 - condition)),
+        }),
       ),
     );
     cardBody.appendChild(
       statusIndicator(
-        condition >= MACHINES.wear.warnBelow ? 'Läuft' : 'Wartung empfohlen',
+        condition >= MACHINES.wear.warnBelow ? t('details.running') : t('details.maintenanceAdvised'),
         condition >= MACHINES.wear.warnBelow ? 'good' : 'warn',
       ),
     );
@@ -104,16 +106,19 @@ function body(game: Game, def: PurchasableDef, afterBuy: () => void): HTMLElemen
   // --- upgrade -------------------------------------------------------------
   if (level < def.maxCount) {
     const preview = isMachine
-      ? `Stufe ${level + 1}: ×${levelMultiplier(Math.min(level + 1, MACHINES.maxLevel)).toFixed(2)} Leistung`
-      : 'Eine weitere Einheit';
+      ? t('details.upgradePreview', {
+          level: level + 1,
+          factor: levelMultiplier(Math.min(level + 1, MACHINES.maxLevel)).toFixed(2),
+        })
+      : t('details.oneMore');
     out.push(
       infoCard({
         icon: '⬆️',
-        title: 'Ausbauen',
+        title: t('details.upgrade'),
         subtitle: preview,
         actions: [
           primaryButton({
-            label: 'Kaufen',
+            label: t('common.buy'),
             icon: '💶',
             hint: money(nextCost(game.state, def.id)),
             disabled: !game.canBuy(def.id),
@@ -125,7 +130,7 @@ function body(game: Game, def: PurchasableDef, afterBuy: () => void): HTMLElemen
       }),
     );
   } else {
-    out.push(el('div', 'card-note', '✔ Endstufe erreicht.'));
+    out.push(el('div', 'card-note', t('common.maxed')));
   }
 
   return out;

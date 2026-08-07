@@ -25,6 +25,7 @@ import {
 } from '../progress/research';
 import { buyPerk, canPrestige, doPrestige, pointsGain } from '../progress/prestige';
 import { check as checkAchievements, tickAchievements } from '../progress/achievements';
+import { resetEvents, tickEvents } from './systems/events';
 
 /**
  * Largest value any running total may reach. Well below `Number.MAX_VALUE`, so
@@ -243,12 +244,16 @@ export class Game {
   }
 
   /** Buys one delivery into the waiting queue. */
-  buyVehicle(vehicleId: string, silent = false): boolean {
+  /**
+   * @param silent skips the toast and the manual-purchase counter
+   * @param free the delivery is a gift (random event) - no money changes hands
+   */
+  buyVehicle(vehicleId: string, silent = false, free = false): boolean {
     const def = Content.vehicle(vehicleId);
     if (!def || !this.isUnlocked(vehicleId)) return false;
     if (this.state.queue.length >= this.stats.queueSlots && this.state.active) return false;
 
-    const price = this.buyPrice(vehicleId);
+    const price = free ? 0 : this.buyPrice(vehicleId);
     if (!this.spendMoney(price)) {
       if (!silent) {
         this.bus.emit('notice', { text: 'Nicht genug Geld für diese Lieferung.', icon: '💸', tone: 'warn' });
@@ -418,6 +423,7 @@ export class Game {
     this.autoBuyCredit = 0;
     this.autoSellCredit = 0;
     this.processCredit = {};
+    resetEvents();
 
     this.recompute();
     this.loadVehicle(BALANCE.start.starterVehicle);
@@ -460,6 +466,7 @@ export class Game {
     runMaintenance(this, dt, working, efficiency);
     tickPayroll(this, dt, working);
     tickMetrics(this, dt);
+    tickEvents(this, dt, efficiency);
     tickAchievements(this, dt);
     this.statsTimer += dt;
     if (this.statsDirty && this.statsTimer >= 0.5) {

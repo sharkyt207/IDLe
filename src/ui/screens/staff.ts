@@ -1,6 +1,7 @@
 import { Content } from '../../data';
 import { COMPANY, staffXpForLevel } from '../../data/company';
 import { money, rate } from '../../core/format';
+import { t } from '../../core/i18n';
 import type { Game } from '../../game/game';
 import { staffRows, upkeepBill, wageBill } from '../../company/payroll';
 import {
@@ -24,7 +25,7 @@ import type { Screen } from '../screen';
  */
 export class StaffScreen implements Screen {
   readonly id = 'staff';
-  readonly label = 'Mitarbeiter';
+  readonly label = 'nav.staff';
   readonly icon = '👷';
   readonly root = el('div', 'screen');
 
@@ -38,20 +39,18 @@ export class StaffScreen implements Screen {
 
     root.appendChild(
       statGrid(
-        statTile(String(headcount), 'Mitarbeiter'),
-        statTile(rate(wageBill(game), ' €/s'), 'Personalkosten'),
-        statTile(rate(upkeepBill(game), ' €/s'), 'Gebäudeunterhalt'),
-        statTile(`×${game.stats.mult.staffProductivity.toFixed(2)}`, 'Leistungsbonus'),
+        statTile(String(headcount), t('staff.headcount')),
+        statTile(rate(wageBill(game), ' €/s'), t('staff.wages')),
+        statTile(rate(upkeepBill(game), ' €/s'), t('staff.upkeep')),
+        statTile(`×${game.stats.mult.staffProductivity.toFixed(2)}`, t('staff.productivity')),
       ),
     );
 
     this.renderPriorities();
 
-    root.appendChild(sectionTitle('Belegschaft'));
+    root.appendChild(sectionTitle(t('staff.roster')));
     if (rows.length === 0) {
-      root.appendChild(
-        el('div', 'empty', 'Noch niemand angestellt. Mitarbeiter gibt es im Schrottplatz unter Ausbau.'),
-      );
+      root.appendChild(el('div', 'empty', t('staff.empty')));
       return;
     }
 
@@ -60,9 +59,10 @@ export class StaffScreen implements Screen {
         el(
           'div',
           'card-note',
-          `Lohnrückstand ${money(game.state.metrics.arrears)} — das Team arbeitet mit ${Math.round(
-            COMPANY.payroll.unpaidFactor * 100,
-          )} % Tempo, kündigt aber nicht.`,
+          t('staff.arrears', {
+            amount: money(game.state.metrics.arrears),
+            percent: Math.round(COMPANY.payroll.unpaidFactor * 100),
+          }),
         ),
       );
     }
@@ -76,14 +76,22 @@ export class StaffScreen implements Screen {
       const card = infoCard({
         icon: row.icon,
         title: `${row.name} ×${row.count}`,
-        subtitle: `Erfahrung ${row.level}/${COMPANY.staff.maxLevel} · Lohn ${rate(row.wage, ' €/s')}`,
+        subtitle: t('staff.experience', {
+          level: row.level,
+          max: COMPANY.staff.maxLevel,
+          wage: rate(row.wage, ' €/s'),
+        }),
         lines: def?.desc ? [def.desc] : undefined,
         progress: share,
       });
       tooltip(card, () =>
         row.level >= COMPANY.staff.maxLevel
-          ? `${row.name}: Meisterstufe erreicht.`
-          : `${row.name}: noch ${Math.ceil(need - (row.xp - spent))} Erfahrung bis Stufe ${row.level + 1}.`,
+          ? t('staff.mastered', { name: row.name })
+          : t('staff.toNextLevel', {
+              name: row.name,
+              amount: Math.ceil(need - (row.xp - spent)),
+              level: row.level + 1,
+            }),
       );
       root.appendChild(card);
     }
@@ -92,7 +100,7 @@ export class StaffScreen implements Screen {
   /** The one instruction the player gives (GDD chapter 6). */
   private renderPriorities(): void {
     const { game, root } = this;
-    root.appendChild(sectionTitle('Ausrichtung'));
+    root.appendChild(sectionTitle(t('staff.focus')));
     root.appendChild(
       segmentRow(
         Content.priorities.map((p) => ({ id: p.id, label: p.name, icon: p.icon })),
@@ -110,7 +118,7 @@ export class StaffScreen implements Screen {
         icon: current.icon,
         title: current.name,
         subtitle: current.desc,
-        lines: ['Das Team arbeitet ab sofort danach — einzelne Aufgaben musst du nicht verteilen.'],
+        lines: [t('staff.focusNote')],
       }),
     );
   }

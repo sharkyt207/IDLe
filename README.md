@@ -9,8 +9,9 @@ Umsetzung von [GDD Kapitel 1 (Vision)](docs/gdd/01-vision.md),
 [Kapitel 4 (Wirtschaft)](docs/gdd/04-economy.md),
 [Kapitel 5 (Maschinen)](docs/gdd/05-machines.md),
 [Kapitel 6 (Unternehmen)](docs/gdd/06-company.md),
-[Kapitel 7 (Forschung & Prestige)](docs/gdd/07-research-prestige.md) und
-[Kapitel 8 (UI, UX & Art Direction)](docs/gdd/08-ui-ux.md).
+[Kapitel 7 (Forschung & Prestige)](docs/gdd/07-research-prestige.md),
+[Kapitel 8 (UI, UX & Art Direction)](docs/gdd/08-ui-ux.md) und
+[Kapitel 9 (Architektur)](docs/gdd/09-architecture.md).
 
 ## Loslegen
 
@@ -26,6 +27,9 @@ npm run dev        # http://localhost:5173 - am besten in der Mobilansicht öffn
 | `npm run preview` | Produktionsbuild lokal testen |
 | `npm run typecheck` | TypeScript im strict mode |
 | `npm run simulate` | Headless-Balancinglauf (30 Min.), prüft die GDD-Zusagen |
+| `npm test` | 8 Browser-Suiten in echtem Chromium |
+| `npm run i18n` | Übersetzungsstand und Suche nach hartkodiertem Text |
+| `npm run check` | typecheck + simulate + test |
 
 ## Was drin ist
 
@@ -103,6 +107,9 @@ Klangbett werden zur Laufzeit synthetisiert.
 **Barrierefreiheit**: Oberflächengröße 80–150 %, Farbenblind-Modus, reduzierte Effekte,
 Vibration, getrennte Lautstärken und ein Linkshänder-Modus.
 
+**Acht Sprachen vorbereitet** — Deutsch als Quelle, Englisch vollständig, sechs weitere
+registriert und leer. Keine einzige Zeichenkette in `src/ui` steht noch fest im Code.
+
 **Bedienung** vollständig per Touch: Tippen zum Auswählen, Gedrückt halten für Informationen,
 Ziehen zum Scrollen, Pinch zum Zoomen, Doppeltippen zentriert die Kamera. Die Kamera bleibt
 jederzeit unter Kontrolle des Spielers.
@@ -122,7 +129,9 @@ Speicherstände sind versioniert, werden beim Laden saniert und überstehen Inha
 
 ## Stand
 
-Spielbarer Prototyp. Die Kapitel 1 bis 8 des GDD sind umgesetzt; Kapitel 9 ff. sind noch offen.
+Spielbarer Prototyp. Die Kapitel 1 bis 9 des GDD sind umgesetzt; Kapitel 10 ff. sind noch offen.
+
+Architekturentscheidungen sind kurz in [docs/DEVNOTES.md](docs/DEVNOTES.md) begründet.
 
 Bewusst noch offen: **echte Grafik- und Audio-Assets**. Modelle sind Vektorformen, Symbole sind
 Emoji, Geräusche sind synthetisiert. Beides ist so gebaut, dass professionelle Assets die

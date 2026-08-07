@@ -155,6 +155,8 @@ export interface GameState {
   /** Presentation and accessibility (GDD chapter 8). */
   settings: {
     haptics: boolean;
+    /** Interface language (GDD chapter 9). */
+    locale: string;
     /** Theme id from `data/ui.ts`: standard, night, winter. */
     theme: string;
     /** Interface scale, 0.8…1.5. */
@@ -212,7 +214,7 @@ export interface AuctionState {
   aiMax: number;
 }
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export function createInitialState(
   carryPrestige?: GameState['prestige'],
@@ -274,6 +276,7 @@ export function createInitialState(
 
     settings: {
       haptics: true,
+      locale: 'de',
       theme: 'standard',
       uiScale: UI.scale.default,
       colorblind: false,

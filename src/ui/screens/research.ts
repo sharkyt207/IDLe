@@ -1,4 +1,5 @@
 import { Content } from '../../data';
+import { t } from '../../core/i18n';
 import { PROGRESS } from '../../data/progress';
 import { duration, fmt, money, rate } from '../../core/format';
 import type { TechBranch, TechDef } from '../../data/types';
@@ -37,7 +38,7 @@ const BRANCH_ICON: Record<TechBranch, string> = {
  */
 export class ResearchScreen implements Screen {
   readonly id = 'research';
-  readonly label = 'Labor';
+  readonly label = 'nav.research';
   readonly icon = '🔬';
   readonly root = el('div', 'screen');
 
@@ -60,7 +61,7 @@ export class ResearchScreen implements Screen {
 
     if (!this.available()) {
       this.root.appendChild(
-        el('div', 'empty', 'Baue zuerst ein Forschungslabor im Ausbau, um Forschung freizuschalten.'),
+        el('div', 'empty', t('research.noLab')),
       );
       return;
     }
@@ -71,7 +72,7 @@ export class ResearchScreen implements Screen {
 
     const techs = visibleTechs(game).filter((tech) => tech.branch === this.branch);
     if (techs.length === 0) {
-      this.root.appendChild(el('div', 'empty', 'In diesem Zweig ist noch nichts erforschbar.'));
+      this.root.appendChild(el('div', 'empty', t('research.branchEmpty')));
       return;
     }
     for (const tech of techs) this.root.appendChild(this.techCard(tech));
@@ -82,20 +83,16 @@ export class ResearchScreen implements Screen {
     const lab = Math.min(PROGRESS.research.labLevels, owned(game.state, 'lab'));
 
     const grid = el('div', 'stat-grid');
-    grid.appendChild(stat(fmt(game.state.research.points, 0), 'Forschungspunkte'));
-    grid.appendChild(stat(rate(game.stats.researchPointsPerSec, '/s'), 'Zuwachs'));
-    grid.appendChild(stat(`${lab} / ${PROGRESS.research.labLevels}`, 'Laborstufe'));
+    grid.appendChild(stat(fmt(game.state.research.points, 0), t('research.points')));
+    grid.appendChild(stat(rate(game.stats.researchPointsPerSec, '/s'), t('research.growth')));
+    grid.appendChild(stat(`${lab} / ${PROGRESS.research.labLevels}`, t('research.labLevel')));
     grid.appendChild(
-      stat(`${game.state.research.active.length} / ${researchSlots(game)}`, 'Projekte parallel'),
+      stat(`${game.state.research.active.length} / ${researchSlots(game)}`, t('research.parallel')),
     );
     this.root.appendChild(grid);
 
     this.root.appendChild(
-      el(
-        'div',
-        'card-note',
-        `Das Labor erforscht Technologien bis Stufe ${techTier(game)}. Jede Laborstufe hebt Tempo, Punkte und Grenze.`,
-      ),
+      el('div', 'card-note', t('research.tierNote', { tier: techTier(game) })),
     );
   }
 
@@ -104,14 +101,16 @@ export class ResearchScreen implements Screen {
     const active = game.state.research.active;
     if (active.length === 0) return;
 
-    this.root.appendChild(el('div', 'screen-title', 'Läuft gerade'));
+    this.root.appendChild(el('div', 'screen-title', t('research.running')));
     for (const project of active) {
       const tech = Content.researchNode(project.id);
       const card = el('div', 'card');
       card.appendChild(el('div', 'card-icon', tech?.icon ?? '🔬'));
       const body = el('div', 'card-body');
-      body.appendChild(el('div', 'card-title', `${tech?.name ?? project.id} — Stufe ${project.level}`));
-      body.appendChild(el('div', 'card-desc', `Noch ${duration(project.remaining)}`));
+      body.appendChild(
+        el('div', 'card-title', `${tech?.name ?? project.id} — ${t('common.level')} ${project.level}`),
+      );
+      body.appendChild(el('div', 'card-desc', duration(project.remaining)));
       const bar = el('div', 'xp-bar');
       const fill = el('i');
       fill.style.width = `${Math.max(2, (1 - project.remaining / Math.max(1, project.total)) * 100)}%`;
@@ -121,8 +120,8 @@ export class ResearchScreen implements Screen {
       card.appendChild(body);
 
       const actions = el('div', 'card-actions');
-      const stop = el('button', 'ghost', 'Abbrechen');
-      stop.title = 'Die bereits bezahlten Kosten werden nicht erstattet.';
+      const stop = el('button', 'ghost', t('common.cancel'));
+      stop.title = t('research.abandonHint');
       stop.addEventListener('click', () => {
         abandonResearch(game, project.id);
         this.refresh();
@@ -162,11 +161,11 @@ export class ResearchScreen implements Screen {
     const body = el('div', 'card-body');
     const title = el('div', 'card-title');
     title.appendChild(document.createTextNode(tech.name));
-    title.appendChild(el('span', 'count', `Stufe ${status.level}/${tech.maxLevel}`));
+    title.appendChild(el('span', 'count', `${t('common.level')} ${status.level}/${tech.maxLevel}`));
     body.appendChild(title);
     body.appendChild(el('div', 'card-desc', tech.desc));
 
-    if (tech.secret) body.appendChild(el('div', 'card-desc', '✨ Seltene Technologie'));
+    if (tech.secret) body.appendChild(el('div', 'card-desc', t('research.rare')));
 
     // Level bar, so the tree reads as progress rather than a list of buttons.
     const bar = el('div', 'xp-bar');
@@ -178,10 +177,12 @@ export class ResearchScreen implements Screen {
 
     // The next milestone is the reason to keep going - always name it.
     const next = tech.milestones?.find((m) => m.level > status.level);
-    if (next) body.appendChild(el('div', 'card-desc', `Stufe ${next.level}: ${next.desc}`));
+    if (next) {
+      body.appendChild(el('div', 'card-desc', t('research.milestoneAt', { level: next.level, desc: next.desc })));
+    }
 
     if (maxed) {
-      body.appendChild(el('div', 'card-desc', '✔ Endstufe erreicht'));
+      body.appendChild(el('div', 'card-desc', t('common.maxed')));
     } else if (!reachable) {
       body.appendChild(el('div', 'card-note', `🔒 ${requirementText(tech.requires)}`));
     } else {
@@ -194,7 +195,7 @@ export class ResearchScreen implements Screen {
     if (!maxed && reachable) {
       const actions = el('div', 'card-actions');
       const btn = el('button', status.canStart ? 'primary' : '');
-      btn.innerHTML = `Forschen<span class="price">${fmt(status.cost.points, 0)} 🔬</span>`;
+      btn.innerHTML = `${t('research.start')}<span class="price">${fmt(status.cost.points, 0)} 🔬</span>`;
       btn.disabled = !status.canStart;
       btn.addEventListener('click', () => {
         if (startResearch(game, tech.id)) this.refresh();

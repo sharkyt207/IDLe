@@ -15,7 +15,7 @@ import type { Screen } from '../screen';
  */
 export class YardScreen implements Screen {
   readonly id = 'yard';
-  readonly label = 'Hof';
+  readonly label = 'nav.sub.yard';
   readonly icon = '🏗️';
   readonly root = el('div', 'screen no-pad');
 

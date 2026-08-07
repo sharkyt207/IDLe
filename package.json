@@ -9,10 +9,14 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
-    "simulate": "node scripts/simulate.mjs"
+    "simulate": "node scripts/simulate.mjs",
+    "test": "node tests/run.mjs",
+    "i18n": "node scripts/i18n-check.mjs",
+    "check": "npm run typecheck && npm run simulate -- 30 && npm test"
   },
   "devDependencies": {
     "typescript": "^5.9.3",
-    "vite": "^7.1.7"
+    "vite": "^7.1.7",
+    "playwright": "^1.49.0"
   }
 }

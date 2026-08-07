@@ -1,4 +1,5 @@
 import { fmt, money } from '../core/format';
+import { t } from '../core/i18n';
 import { MACHINES, levelMultiplier } from '../data/machines';
 import { COMPANY, staffLevel, staffProductivity, staffXpForLevel } from '../data/company';
 import type { PurchasableDef } from '../data/types';
@@ -51,7 +52,7 @@ export function purchasableCard(game: Game, def: PurchasableDef, onBuy: () => vo
   if (isMachine && count > 0) {
     const condition = game.state.condition[def.id] ?? 1;
     const parts = [`Leistung ×${levelMultiplier(count).toFixed(2)}`];
-    if (count >= MACHINES.qualityFromLevel) parts.push('Qualitätsbonus');
+    if (count >= MACHINES.qualityFromLevel) parts.push(t('cards.qualityBonus'));
     if (count >= MACHINES.master.level) parts.push('Meisterstufe: Energiebonus + Fundchance');
     body.appendChild(el('div', 'card-desc', parts.join(' · ')));
     body.appendChild(

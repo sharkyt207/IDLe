@@ -1,4 +1,5 @@
 import { Content } from '../../data';
+import { t } from '../../core/i18n';
 import { VEHICLE_CLASS_NAMES } from '../../data/vehicles';
 import { fmt, money } from '../../core/format';
 import type { VehicleDef } from '../../data/types';
@@ -12,7 +13,7 @@ import type { Screen } from '../screen';
 /** Ankauf: order deliveries and pick what the automation should buy. */
 export class MarketScreen implements Screen {
   readonly id = 'market';
-  readonly label = 'Ankauf';
+  readonly label = 'nav.sub.market';
   readonly icon = '🛒';
   readonly root = el('div', 'screen');
 
@@ -119,7 +120,7 @@ export class MarketScreen implements Screen {
     body.appendChild(el('div', 'card-desc', `Erwartet: ${expectedValueText(game, def)}`));
 
     if (!unlocked) body.appendChild(el('div', 'card-note', `🔒 ${requirementText(def.requires)}`));
-    else if (queueFull) body.appendChild(el('div', 'card-note', 'Warteschlange voll — mehr Stellplätze bauen'));
+    else if (queueFull) body.appendChild(el('div', 'card-note', t('market.queueFull')));
     card.appendChild(body);
 
     const actions = el('div', 'card-actions');

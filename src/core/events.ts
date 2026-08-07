@@ -1,3 +1,5 @@
+import { log } from './log';
+
 /** Payloads emitted by the simulation for the UI/renderer to react to. */
 export interface GameEvents {
   /** State changed enough that panels should re-render. */
@@ -22,6 +24,12 @@ export interface GameEvents {
   built: { defId: string };
   /** A collectible turned up while dismantling. */
   found: { collectibleId: string };
+  /** A business day closed (GDD chapter 9: Event Manager). */
+  dayEnded: { profit: number };
+  /** A random event fired. Listeners look the definition up by id. */
+  randomEvent: { id: string };
+  /** The save was written - the UI can confirm it. */
+  saved: { manual: boolean };
 }
 
 type Handler<K extends keyof GameEvents> = (payload: GameEvents[K]) => void;
@@ -40,9 +48,22 @@ export class EventBus {
     return () => set!.delete(fn as Handler<never>);
   }
 
+  /**
+   * Notifies every listener.
+   *
+   * A throwing listener is logged and skipped rather than allowed to abort the
+   * emit: the bus is what keeps the systems apart, so one broken UI panel must
+   * not stop the simulation from telling the others what happened.
+   */
   emit<K extends keyof GameEvents>(key: K, payload: GameEvents[K]): void {
     const set = this.handlers.get(key);
     if (!set) return;
-    for (const fn of set) (fn as Handler<K>)(payload);
+    for (const fn of set) {
+      try {
+        (fn as Handler<K>)(payload);
+      } catch (error) {
+        log.error('events', `Listener für "${String(key)}" ist gescheitert`, error);
+      }
+    }
   }
 }

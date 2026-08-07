@@ -1,17 +1,20 @@
 import { BALANCE } from '../data/balance';
 import { UI } from '../data/ui';
 import { duration, fmt, money } from '../core/format';
+import { currentLocale, setLocale, t } from '../core/i18n';
+import { log } from '../core/log';
 import type { Game } from '../game/game';
 import { saveGame } from '../game/save';
 import { simulateOffline, type OfflineReport } from '../game/systems/offline';
 import { SoundSystem } from '../audio/sound';
 import { applyTheme } from './theme';
-import { dialog, statGrid, statTile, attachPress } from './components';
+import { dialog, statGrid, statTile, attachPress, tooltip } from './components';
 import { Hud } from './hud';
 import { clear, el } from './dom';
 import type { Screen } from './screen';
 import { Toasts } from './toast';
 import { Tutorial } from './tutorial';
+import { DebugPanel } from './debug';
 import { BuildScreen } from './screens/build';
 import { HubScreen } from './screens/hub';
 import { MarketScreen } from './screens/market';
@@ -41,6 +44,8 @@ export class App {
   private tutorial: Tutorial;
   private hud: Hud;
   private sound: SoundSystem;
+  /** Only built in dev builds - the whole module drops out of a release. */
+  private debug?: DebugPanel;
 
   private screens: Screen[] = [];
   private yard: YardScreen;
@@ -54,6 +59,7 @@ export class App {
   private uiTimer = 0;
   private saveTimer = 0;
   private hiddenAt = 0;
+  private lastSave = 0;
 
   constructor(
     private game: Game,
@@ -62,6 +68,7 @@ export class App {
     this.root = mount;
     clear(this.root);
 
+    setLocale(game.state.settings.locale);
     applyTheme(game.state.settings);
     this.sound = new SoundSystem(game.state.settings);
 
@@ -92,8 +99,8 @@ export class App {
 
     // The six main areas from the GDD. Two of them are hubs.
     this.screens = [
-      new HubScreen('yard', 'Schrottplatz', '🏗️', [this.yard, new BuildScreen(game)]),
-      new HubScreen('market', 'Markt', '🛒', [
+      new HubScreen('yard', 'nav.yard', '🏗️', [this.yard, new BuildScreen(game)]),
+      new HubScreen('market', 'nav.market', '🛒', [
         new MarketScreen(game),
         new StorageScreen(game),
         new TradeScreen(game),
@@ -111,11 +118,22 @@ export class App {
     this.buildTabs();
     this.bindEvents();
 
-    // Dev handle for automated playtests of the world systems.
+    // Dev handle for automated playtests, plus the developer panel.
     if (import.meta.env.DEV) {
-      const debug = window as unknown as Record<string, unknown>;
-      debug.yard = this.yard.renderer;
-      debug.app = this;
+      const handle = window as unknown as Record<string, unknown>;
+      handle.yard = this.yard.renderer;
+      handle.app = this;
+      this.debug = new DebugPanel(game);
+      handle.debug = this.debug;
+      // Long-press the level chip to open it - no button in the real UI.
+      tooltip(this.hud.top, () => t('debug.enabled'));
+      let hold: number | undefined;
+      this.hud.top.addEventListener('pointerdown', () => {
+        hold = window.setTimeout(() => this.debug?.open(() => this.refreshAll()), 900);
+      });
+      const cancel = () => window.clearTimeout(hold);
+      this.hud.top.addEventListener('pointerup', cancel);
+      this.hud.top.addEventListener('pointercancel', cancel);
     }
 
     this.select('yard');
@@ -136,9 +154,12 @@ export class App {
    */
   private buildTabs(): void {
     const visible = this.screens.filter((s) => !s.available || s.available());
-    const signature = visible
-      .map((s) => `${s.id}:${s.id === this.activeId ? 1 : 0}:${s.hasNews?.() ? 1 : 0}`)
-      .join('|');
+    // The locale is part of the signature: the ids do not change when the
+    // language does, but every label does.
+    const signature = [
+      currentLocale(),
+      ...visible.map((s) => `${s.id}:${s.id === this.activeId ? 1 : 0}:${s.hasNews?.() ? 1 : 0}`),
+    ].join('|');
     if (signature === this.tabSignature) return;
     this.tabSignature = signature;
 
@@ -148,7 +169,9 @@ export class App {
       const tab = el('button', `tab${screen.id === this.activeId ? ' active' : ''}`);
       tab.dataset.id = screen.id;
       tab.appendChild(el('span', 'tab-icon', screen.icon));
-      tab.appendChild(el('span', 'tab-label', screen.label));
+      // Screen labels are i18n keys where a screen has one; `t` falls through
+      // to the raw string for anything not yet keyed.
+      tab.appendChild(el('span', 'tab-label', label(screen.label)));
       if (screen.hasNews?.()) tab.appendChild(el('span', 'badge'));
       attachPress(tab, () => {
         this.sound.play('tap');
@@ -181,6 +204,13 @@ export class App {
     bus.on('progress', () => {
       this.tutorial.update();
       this.buildTabs();
+      // "Speichern erfolgt automatisch nach Bauaktionen, Käufen und
+      // Forschungsabschluss" - `progress` is exactly those moments.
+      this.saveNow(false);
+    });
+
+    bus.on('saved', ({ manual }) => {
+      if (manual) this.toasts.show(t('settings.saved'), '💾', 'good');
     });
 
     // Browsers block audio until a gesture; this is that gesture.
@@ -196,7 +226,7 @@ export class App {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.hiddenAt = Date.now();
-        saveGame(this.game.state);
+        this.saveNow(true);
       } else {
         const away = (Date.now() - this.hiddenAt) / 1000;
         this.hiddenAt = 0;
@@ -211,8 +241,8 @@ export class App {
       }
     });
 
-    window.addEventListener('pagehide', () => saveGame(this.game.state));
-    window.addEventListener('beforeunload', () => saveGame(this.game.state));
+    window.addEventListener('pagehide', () => this.saveNow(true));
+    window.addEventListener('beforeunload', () => this.saveNow(true));
   }
 
   // -------------------------------------------------------------------------
@@ -308,13 +338,26 @@ export class App {
     }
 
     this.saveTimer += dt;
-    if (this.saveTimer >= BALANCE.autosaveSeconds) {
-      this.saveTimer = 0;
-      saveGame(this.game.state);
-    }
+    if (this.saveTimer >= BALANCE.autosaveSeconds) this.saveNow(false);
 
+    this.debug?.sample(dt);
     requestAnimationFrame(this.loop);
   };
+
+  /**
+   * Writes the save.
+   *
+   * Rate-limited so the burst of `progress` events a single purchase produces
+   * does not serialise the whole state five times in a row; a manual save
+   * always goes through.
+   */
+  saveNow(manual: boolean): void {
+    if (!manual && performance.now() - this.lastSave < 1500) return;
+    this.lastSave = performance.now();
+    this.saveTimer = 0;
+    if (saveGame(this.game.state)) this.game.bus.emit('saved', { manual });
+    else log.warn('app', 'Autospeichern fehlgeschlagen');
+  }
 
   // -------------------------------------------------------------------------
   // Offline
@@ -324,36 +367,33 @@ export class App {
     const content = el('div');
     content.appendChild(
       statGrid(
-        statTile(money(report.moneyGained), 'Verdient', 'good'),
-        statTile(fmt(report.vehiclesDone, 0), 'Fahrzeuge'),
-        statTile(duration(report.seconds), 'Angerechnet'),
-        statTile(`${Math.round(report.efficiency * 100)} %`, 'Effizienz'),
+        statTile(money(report.moneyGained), t('offline.earned'), 'good'),
+        statTile(fmt(report.vehiclesDone, 0), t('offline.vehicles')),
+        statTile(duration(report.seconds), t('offline.credited')),
+        statTile(`${Math.round(report.efficiency * 100)} %`, t('offline.efficiency')),
       ),
     );
 
     if (report.capped) {
       const note = el('p');
-      note.textContent = `Du warst ${duration(
-        report.awaySeconds,
-      )} weg. Mehr Offline-Zeit gibt es über Schichtleiter, Fernüberwachung und die Autonome Fabrik.`;
+      note.textContent = t('offline.capped', { away: duration(report.awaySeconds) });
       content.appendChild(note);
     }
 
     const { stats, state } = this.game;
     if (stats.autoBuyPerMinute <= 0 || !state.autoBuyEnabled || stats.autoSellPerSec <= 0) {
       const hint = el('p');
-      hint.textContent =
-        'Tipp: Der Hof arbeitet offline nur so lange weiter, wie Nachschub da ist. Ein Pickup kauft automatisch Schrott an, ein Förderband verkauft automatisch.';
+      hint.textContent = t('offline.hint');
       content.appendChild(hint);
     }
 
-    dialog({
-      title: 'Willkommen zurück!',
-      icon: '🌅',
-      body: 'Deine Anlagen haben weitergearbeitet.',
-      content,
-    });
+    dialog({ title: t('offline.title'), icon: '🌅', body: t('offline.body'), content });
   }
+}
+
+/** Screen labels may be i18n keys; anything else passes through unchanged. */
+function label(value: string): string {
+  return value.includes('.') ? t(value) : value;
 }
 
 export { UI as UI_TOKENS };

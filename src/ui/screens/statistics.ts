@@ -3,6 +3,7 @@ import { COMPANY } from '../../data/company';
 import { difficultyFactor } from '../../data/progress';
 import { RARITY_COLOR } from '../../data/ui';
 import { fmt, money, rate, units } from '../../core/format';
+import { t } from '../../core/i18n';
 import type { Game } from '../../game/game';
 import { report } from '../../company/statistics';
 import { rows as achievementRows, titles } from '../../progress/achievements';
@@ -43,7 +44,7 @@ type Tab = 'zahlen' | 'erfolge' | 'prestige' | 'sammlung';
  */
 export class StatisticsScreen implements Screen {
   readonly id = 'stats';
-  readonly label = 'Statistik';
+  readonly label = 'nav.stats';
   readonly icon = '📊';
   readonly root = el('div', 'screen');
 
@@ -64,10 +65,10 @@ export class StatisticsScreen implements Screen {
     this.root.appendChild(
       segmentRow(
         [
-          { id: 'zahlen', label: 'Zahlen', icon: '📈' },
-          { id: 'erfolge', label: 'Erfolge', icon: '🏅' },
-          { id: 'prestige', label: 'Prestige', icon: '🏆' },
-          { id: 'sammlung', label: 'Sammlung', icon: '🏺' },
+          { id: 'zahlen', label: t('stats.tab.numbers'), icon: '📈' },
+          { id: 'erfolge', label: t('stats.tab.achievements'), icon: '🏅' },
+          { id: 'prestige', label: t('stats.tab.prestige'), icon: '🏆' },
+          { id: 'sammlung', label: t('stats.tab.collection'), icon: '🏺' },
         ],
         this.tab,
         (id) => {
@@ -94,52 +95,54 @@ export class StatisticsScreen implements Screen {
 
     root.appendChild(
       statGrid(
-        signed(r.dayProfit, 'Tagesgewinn'),
-        signed(r.weekProfit, `Wochengewinn (${COMPANY.metrics.weekDays} Tage)`),
-        statTile(units(r.unitsRecycled), 'Produktionsmenge'),
-        statTile(`${units(r.storageUnits)} / ${units(game.stats.storage)}`, 'Lagerbestand'),
-        statTile(`${fmt(r.powerDemand)} / ${fmt(r.powerSupply)} kW`, 'Stromverbrauch'),
-        statTile(String(r.employees), 'Mitarbeiter'),
-        statTile(money(r.companyValue), 'Firmenwert'),
-        statTile(`${Math.round(r.efficiency * 100)} %`, 'Effizienz', r.efficiency > 0.95 ? 'good' : 'warn'),
-        statTile(`${fmt(r.co2Saved)} kg`, 'CO₂-Einsparung', 'good'),
-        statTile(rate(r.runningCosts, ' €/s'), 'Laufende Kosten'),
+        signed(r.dayProfit, t('stats.dayProfit')),
+        signed(r.weekProfit, t('stats.weekProfit', { days: COMPANY.metrics.weekDays })),
+        statTile(units(r.unitsRecycled), t('stats.production')),
+        statTile(`${units(r.storageUnits)} / ${units(game.stats.storage)}`, t('stats.storage')),
+        statTile(`${fmt(r.powerDemand)} / ${fmt(r.powerSupply)} kW`, t('stats.power')),
+        statTile(String(r.employees), t('stats.employees')),
+        statTile(money(r.companyValue), t('hud.companyValue')),
+        statTile(`${Math.round(r.efficiency * 100)} %`, t('stats.efficiency'), r.efficiency > 0.95 ? 'good' : 'warn'),
+        statTile(`${fmt(r.co2Saved)} kg`, t('stats.co2'), 'good'),
+        statTile(rate(r.runningCosts, ' €/s'), t('stats.runningCosts')),
       ),
     );
 
     if (r.efficiency < 0.95) {
       const reasons: string[] = [];
-      if (game.stats.power.factor < 0.99) reasons.push('Strommangel');
-      if (game.stats.condition < 0.95) reasons.push('Verschleiß');
-      if (s.metrics.arrears > 0) reasons.push('offene Löhne');
-      if (reasons.length) root.appendChild(el('div', 'card-note', `Effizienz gebremst durch: ${reasons.join(', ')}`));
+      if (game.stats.power.factor < 0.99) reasons.push(t('stats.reason.power'));
+      if (game.stats.condition < 0.95) reasons.push(t('stats.reason.wear'));
+      if (s.metrics.arrears > 0) reasons.push(t('stats.reason.wages'));
+      if (reasons.length) {
+        root.appendChild(el('div', 'card-note', t('stats.efficiencySlowedBy', { reasons: reasons.join(', ') })));
+      }
     }
 
     // --- the business day and week, as a chart -------------------------------
-    root.appendChild(sectionTitle('Geschäftstag'));
+    root.appendChild(sectionTitle(t('stats.businessDay')));
     const day = infoCard({
-      title: `Laufender Tag — ${Math.round(r.dayProgress * 100)} %`,
-      subtitle: `Einnahmen ${money(r.dayEarned)} · Ausgaben ${money(r.daySpent)}`,
+      title: t('stats.currentDay', { percent: Math.round(r.dayProgress * 100) }),
+      subtitle: t('stats.income', { earned: money(r.dayEarned), spent: money(r.daySpent) }),
       progress: r.dayProgress,
     });
     root.appendChild(day);
 
     const history = [...s.metrics.dayHistory, { earned: r.dayEarned, spent: r.daySpent }];
     if (history.length > 1) {
-      root.appendChild(sectionTitle('Gewinn der letzten Tage'));
+      root.appendChild(sectionTitle(t('stats.profitHistory')));
       root.appendChild(barChart(history.map((d) => d.earned - d.spent)));
     }
 
     // --- lifetime ------------------------------------------------------------
-    root.appendChild(sectionTitle('Gesamt'));
+    root.appendChild(sectionTitle(t('stats.lifetime')));
     root.appendChild(
       statGrid(
-        statTile(`Level ${s.level}`, `${fmt(s.xp, 0)} XP`),
-        statTile(money(s.lifetimeEarned), 'Gesamtumsatz'),
-        statTile(fmt(s.progressStats.vehiclesDone, 0), 'Fahrzeuge zerlegt'),
-        statTile(fmt(s.progressStats.taps, 0), 'Manuelle Tipps'),
-        statTile(`${fmt(game.stats.offlineHours, 0)} h`, 'Offline-Fortschritt'),
-        statTile(`${Math.round(game.stats.condition * 100)} %`, 'Anlagenzustand'),
+        statTile(`${t('common.level')} ${s.level}`, `${fmt(s.xp, 0)} XP`),
+        statTile(money(s.lifetimeEarned), t('stats.totalRevenue')),
+        statTile(fmt(s.progressStats.vehiclesDone, 0), t('stats.vehiclesDone')),
+        statTile(fmt(s.progressStats.taps, 0), t('stats.taps')),
+        statTile(`${fmt(game.stats.offlineHours, 0)} h`, t('stats.offlineHours')),
+        statTile(`${Math.round(game.stats.condition * 100)} %`, t('stats.machineCondition')),
       ),
     );
   }
@@ -153,9 +156,9 @@ export class StatisticsScreen implements Screen {
     const list = achievementRows(game);
     const earned = list.filter((r) => r.earned).length;
 
-    root.appendChild(sectionTitle(`Erfolge (${earned}/${list.length})`));
+    root.appendChild(sectionTitle(t('achievements.title', { earned, total: list.length })));
     const owned = titles(game);
-    if (owned.length) root.appendChild(el('div', 'card-note', `Titel: ${owned.join(' · ')}`));
+    if (owned.length) root.appendChild(el('div', 'card-note', t('achievements.titles', { list: owned.join(' · ') })));
 
     const sorted = [...list].sort((a, b) => Number(b.earned) - Number(a.earned) || b.progress - a.progress);
     for (const row of sorted) {
@@ -186,23 +189,22 @@ export class StatisticsScreen implements Screen {
 
     root.appendChild(
       statGrid(
-        statTile(fmt(game.state.prestige.points, 0), 'Industriepunkte', 'research'),
-        statTile(`+${fmt(gain, 0)}`, 'bei Neustart', open ? 'good' : 'neutral'),
-        statTile(String(game.state.prestige.runs), 'Neugründungen'),
-        statTile(`×${difficultyFactor(game.state.prestige.runs).toFixed(2)}`, 'Kostenfaktor'),
+        statTile(fmt(game.state.prestige.points, 0), t('prestige.points'), 'research'),
+        statTile(`+${fmt(gain, 0)}`, t('prestige.onRestart'), open ? 'good' : 'neutral'),
+        statTile(String(game.state.prestige.runs), t('prestige.runs')),
+        statTile(`×${difficultyFactor(game.state.prestige.runs).toFixed(2)}`, t('prestige.costFactor')),
       ),
     );
 
-    root.appendChild(sectionTitle('Neues Unternehmen'));
+    root.appendChild(sectionTitle(t('prestige.newCompany')));
     root.appendChild(
       infoCard({
         icon: '🏆',
-        title: 'Unternehmen verkaufen',
-        subtitle:
-          'Industriepunkte, der Prestige-Baum, Erfolge und entdeckte Fahrzeuge bleiben. Alles andere beginnt von vorn.',
+        title: t('prestige.sellCompany'),
+        subtitle: t('prestige.sellCompanyDesc'),
         actions: [
           primaryButton({
-            label: 'Neu gründen',
+            label: t('prestige.restart'),
             icon: '🏆',
             tone: 'research',
             disabled: !open,
@@ -221,7 +223,7 @@ export class StatisticsScreen implements Screen {
       root.appendChild(row);
     }
 
-    root.appendChild(sectionTitle('Prestige-Baum'));
+    root.appendChild(sectionTitle(t('prestige.tree')));
     root.appendChild(
       segmentRow(
         PRESTIGE_BRANCHES.map((b) => ({ id: b.id, label: b.id, icon: b.icon })),
@@ -251,7 +253,7 @@ export class StatisticsScreen implements Screen {
             ? undefined
             : [
                 primaryButton({
-                  label: 'Kaufen',
+                  label: t('common.buy'),
                   icon: '🏆',
                   tone: 'research',
                   hint: `${fmt(cost, 0)}`,
@@ -271,7 +273,7 @@ export class StatisticsScreen implements Screen {
     const content = el('div');
     content.appendChild(
       primaryButton({
-        label: `Ja, +${fmt(gain, 0)} Industriepunkte`,
+        label: t('prestige.confirmYes', { points: fmt(gain, 0) }),
         icon: '🏆',
         tone: 'research',
         wide: true,
@@ -283,9 +285,9 @@ export class StatisticsScreen implements Screen {
       }),
     );
     const close = dialog({
-      title: 'Unternehmen neu gründen?',
+      title: t('prestige.confirmTitle'),
       icon: '🏆',
-      body: 'Geld, Lager, Maschinen, Mitarbeiter, Technologien und Gelände werden zurückgesetzt. Jeder Durchlauf macht die Welt etwas teurer — und die Belohnungen deutlich größer.',
+      body: t('prestige.confirmBody'),
       content,
     });
   }
@@ -298,26 +300,26 @@ export class StatisticsScreen implements Screen {
     const { game, root } = this;
     const found = game.state.progressStats.discovered;
 
-    root.appendChild(sectionTitle(`Fahrzeugtypen (${found.length}/${Content.vehicles.length})`));
+    root.appendChild(sectionTitle(t('collection.vehicleTypes', { found: found.length, total: Content.vehicles.length })));
     const box = el('div', 'card');
     const body = el('div', 'card-body');
     const line = el('div', 'collection-strip');
     for (const v of Content.vehicles) {
       const chip = el('span', 'collection-chip', found.includes(v.id) ? v.icon : '❔');
-      chip.title = found.includes(v.id) ? v.name : 'Noch nicht entdeckt';
+      chip.title = found.includes(v.id) ? v.name : t('collection.unknown');
       chip.style.setProperty('--chip-tone', RARITY_COLOR[v.rarity]);
       if (!found.includes(v.id)) chip.classList.add('unknown');
       line.appendChild(chip);
     }
     body.appendChild(line);
-    body.appendChild(el('div', 'card-desc', 'Jeder zerlegte Fahrzeugtyp wird dauerhaft freigeschaltet.'));
+    body.appendChild(el('div', 'card-desc', t('collection.vehicleNote')));
     box.appendChild(body);
     root.appendChild(box);
 
     const owned = Content.collectibles.filter((c) => (game.state.collection[c.id] ?? 0) > 0);
-    root.appendChild(sectionTitle(`Fundstücke (${owned.length}/${Content.collectibles.length})`));
+    root.appendChild(sectionTitle(t('collection.finds', { found: owned.length, total: Content.collectibles.length })));
     if (owned.length === 0) {
-      root.appendChild(el('div', 'empty', 'Beim Zerlegen findet sich manchmal etwas Wertvolles.'));
+      root.appendChild(el('div', 'empty', t('collection.findsEmpty')));
       return;
     }
     for (const item of owned) {
@@ -325,11 +327,11 @@ export class StatisticsScreen implements Screen {
       const card = infoCard({
         icon: item.icon,
         title: item.name,
-        subtitle: `Verkaufswert ${money(item.value * game.stats.mult.sellPrice)}`,
+        subtitle: t('collection.value', { amount: money(item.value * game.stats.mult.sellPrice) }),
         accent: RARITY_COLOR.legendary,
         actions: [
           secondaryButton({
-            label: 'Verkaufen',
+            label: t('common.sell'),
             icon: '💶',
             tone: 'good',
             onClick: () => {

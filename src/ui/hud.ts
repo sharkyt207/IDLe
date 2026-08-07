@@ -1,5 +1,6 @@
 import { Content } from '../data';
 import { fmt, money, units } from '../core/format';
+import { t } from '../core/i18n';
 import type { Game } from '../game/game';
 import { xpForLevel } from '../game/state';
 import { progressOf } from '../economy/contracts';
@@ -81,12 +82,12 @@ export class Hud {
     this.xpFill.style.width = `${Math.min(100, (state.xp / xpForLevel(state.level)) * 100)}%`;
 
     clear(this.resources);
-    this.resources.appendChild(chip('🏢', money(this.game.companyValue()), 'Firmenwert'));
+    this.resources.appendChild(chip('🏢', money(this.game.companyValue()), t('hud.companyValue')));
     if (state.prestige.points > 0 || state.prestige.runs > 0) {
-      this.resources.appendChild(chip('🏆', fmt(state.prestige.points, 0), 'Industriepunkte'));
+      this.resources.appendChild(chip('🏆', fmt(state.prestige.points, 0), t('hud.prestigePoints')));
     }
     if (stats.unlocks.has('research')) {
-      this.resources.appendChild(chip('🔬', fmt(state.research.points, 0), 'Forschungspunkte'));
+      this.resources.appendChild(chip('🔬', fmt(state.research.points, 0), t('hud.researchPoints')));
     }
 
     const used = this.game.storageUsed();
@@ -110,8 +111,8 @@ export class Hud {
       rows.push(
         railRow(
           '🤝',
-          def?.client ?? 'Vertrag',
-          contract.done ? 'läuft' : `${Math.round(share * 100)} %`,
+          def?.client ?? t('hud.contract'),
+          contract.done ? t('hud.running') : `${Math.round(share * 100)} %`,
           share,
         ),
       );
@@ -131,11 +132,11 @@ export class Hud {
 
     if (state.trade.auction) {
       const lot = Content.auctionLot(state.trade.auction.lotId);
-      rows.push(railRow('🔨', lot?.name ?? 'Auktion', `${Math.ceil(state.trade.auction.timeLeft)} s`));
+      rows.push(railRow('🔨', lot?.name ?? t('hud.auction'), `${Math.ceil(state.trade.auction.timeLeft)} s`));
     }
 
     if (rows.length === 0 && stats.teardownRate > 0 && state.active) {
-      rows.push(railRow('🤖', 'Automatik läuft', `${fmt(stats.teardownRate)}/s`));
+      rows.push(railRow('🤖', t('hud.automationRunning'), `${fmt(stats.teardownRate)}/s`));
     }
 
     clear(this.left);
@@ -149,16 +150,22 @@ export class Hud {
     const rows: HTMLElement[] = [];
 
     if (stats.power.factor < 0.99) {
-      rows.push(statusRow('Strommangel', `${Math.round(stats.power.factor * 100)} % Leistung`, 'bad'));
+      rows.push(
+        statusRow(t('hud.powerShortage'), t('hud.performance', { percent: Math.round(stats.power.factor * 100) }), 'bad'),
+      );
     }
     if (this.game.storageUsed() >= stats.storage * 0.9) {
-      rows.push(statusRow('Lager fast voll', `${units(this.game.storageUsed())} Einheiten`, 'warn'));
+      rows.push(
+        statusRow(t('hud.storageAlmostFull'), t('hud.units', { amount: units(this.game.storageUsed()) }), 'warn'),
+      );
     }
     if (needsService(this.game)) {
-      rows.push(statusRow('Wartung nötig', `${Math.round(stats.condition * 100)} % Zustand`, 'warn'));
+      rows.push(
+        statusRow(t('hud.maintenanceDue'), t('hud.condition', { percent: Math.round(stats.condition * 100) }), 'warn'),
+      );
     }
     if (state.metrics.arrears > 0) {
-      rows.push(statusRow('Löhne offen', money(state.metrics.arrears), 'bad'));
+      rows.push(statusRow(t('hud.wagesOwed'), money(state.metrics.arrears), 'bad'));
     }
 
     clear(this.right);
@@ -170,8 +177,8 @@ export class Hud {
   private summary(): string {
     const { state, stats } = this.game;
     return [
-      `Level ${state.level}`,
-      `Firmenwert ${money(this.game.companyValue())}`,
+      `${t('common.level')} ${state.level}`,
+      `${t('hud.companyValue')} ${money(this.game.companyValue())}`,
       `Zerlegen ${fmt(stats.teardownRate)}/s`,
       `Strom ${Math.round(stats.power.factor * 100)} %`,
     ].join(' · ');

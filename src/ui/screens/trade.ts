@@ -1,4 +1,5 @@
 import { Content } from '../../data';
+import { t } from '../../core/i18n';
 import { ECONOMY } from '../../data/economy';
 import { duration, fmt, money, units } from '../../core/format';
 import type { Game } from '../../game/game';
@@ -10,7 +11,7 @@ import type { Screen } from '../screen';
 /** Handel: long-term contracts and live auctions (GDD chapter 4). */
 export class TradeScreen implements Screen {
   readonly id = 'trade';
-  readonly label = 'Handel';
+  readonly label = 'nav.sub.trade';
   readonly icon = '🤝';
   readonly root = el('div', 'screen');
 
@@ -41,14 +42,14 @@ export class TradeScreen implements Screen {
 
     const tabs = el('div', 'btn-row');
     for (const [id, label] of [
-      ['contracts', '📝 Verträge'],
-      ['auction', '🔨 Auktion'],
-    ] as const) {
+      ['contracts', t('trade.contracts')],
+      ['auction', t('trade.auction')],
+    ] as [string, string][]) {
       const btn = el('button', this.tab === id ? 'primary' : 'ghost');
       btn.textContent = label;
       if (id === 'auction' && game.state.trade.auction) btn.textContent = `${label} •`;
       btn.addEventListener('click', () => {
-        this.tab = id;
+        this.tab = id as 'contracts' | 'auction';
         this.refresh();
       });
       tabs.appendChild(btn);
@@ -65,9 +66,9 @@ export class TradeScreen implements Screen {
     const { game, root } = this;
     const trade = game.state.trade;
 
-    root.appendChild(el('div', 'screen-title', 'Laufende Aufträge'));
+    root.appendChild(el('div', 'screen-title', t('trade.activeOrders')));
     if (trade.active.length === 0) {
-      root.appendChild(el('div', 'empty', 'Noch keine Aufträge angenommen.'));
+      root.appendChild(el('div', 'empty', t('trade.noOrders')));
     }
     for (const contract of trade.active) {
       const def = Content.contract(contract.defId);
@@ -103,14 +104,14 @@ export class TradeScreen implements Screen {
 
       const actions = el('div', 'card-actions');
       if (!contract.done) {
-        const send = el('button', 'primary', 'Liefern');
+        const send = el('button', 'primary', t('trade.deliver'));
         send.addEventListener('click', () => {
           deliver(game, contract.key);
           this.refresh();
         });
         actions.appendChild(send);
         const drop = el('button', 'ghost', '✕');
-        drop.title = 'Auftrag aufgeben';
+        drop.title = t('trade.abandon');
         drop.addEventListener('click', () => {
           abandon(game, contract.key);
           this.refresh();
@@ -121,9 +122,9 @@ export class TradeScreen implements Screen {
       root.appendChild(card);
     }
 
-    root.appendChild(el('div', 'screen-title', 'Angebote'));
+    root.appendChild(el('div', 'screen-title', t('trade.offers')));
     if (trade.offers.length === 0) {
-      root.appendChild(el('div', 'empty', 'Aktuell keine Anfragen. Das Angebot wechselt regelmäßig.'));
+      root.appendChild(el('div', 'empty', t('trade.noOffers')));
     }
     for (const offer of trade.offers) {
       const def = Content.contract(offer.defId);
@@ -209,7 +210,7 @@ export class TradeScreen implements Screen {
       el(
         'div',
         auction.playerLeads ? 'card-desc' : 'card-note',
-        auction.playerLeads ? '✔ Du führst die Auktion an.' : 'Ein Mitbieter führt.',
+        auction.playerLeads ? t('trade.leading') : t('trade.outbid'),
       ),
     );
     statusBody.appendChild(el('div', 'card-desc', `Noch ${duration(Math.ceil(auction.timeLeft))}`));

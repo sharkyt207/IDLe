@@ -1,4 +1,5 @@
 import { Content } from '../../data';
+import { t } from '../../core/i18n';
 import { qualityName } from '../../data/economy';
 import { priceInfo } from '../../economy/market';
 import { ruleFor, ruleText, setRule } from '../../company/warehouse';
@@ -12,7 +13,7 @@ import type { Screen } from '../screen';
 /** Lager: what is in storage, what it is worth, what gets processed. */
 export class StorageScreen implements Screen {
   readonly id = 'storage';
-  readonly label = 'Lager';
+  readonly label = 'nav.sub.storage';
   readonly icon = '📦';
   readonly root = el('div', 'screen');
 
@@ -35,13 +36,13 @@ export class StorageScreen implements Screen {
     const { game } = this;
 
     const grid = el('div', 'stat-grid');
-    grid.appendChild(stat(money(this.stockValue()), 'Lagerwert'));
-    grid.appendChild(stat(qualityName(game.stats.quality), 'Anlagenqualität'));
-    grid.appendChild(stat(`${units(game.storageUsed())} / ${units(game.stats.storage)}`, 'Belegung'));
+    grid.appendChild(stat(money(this.stockValue()), t('storage.stockValue')));
+    grid.appendChild(stat(qualityName(game.stats.quality), t('storage.plantQuality')));
+    grid.appendChild(stat(`${units(game.storageUsed())} / ${units(game.stats.storage)}`, t('storage.occupancy')));
     this.root.appendChild(grid);
 
     const row = el('div', 'btn-row');
-    const sellAll = el('button', 'good', 'Alles verkaufen');
+    const sellAll = el('button', 'good', t('common.sellAll'));
     sellAll.disabled = this.stockValue() <= 0;
     sellAll.addEventListener('click', () => {
       game.sellAll();
@@ -50,8 +51,10 @@ export class StorageScreen implements Screen {
     row.appendChild(sellAll);
 
     const auto = el('button', game.state.autoSellEnabled ? '' : 'ghost');
-    auto.innerHTML = `Auto-Verkauf: ${game.state.autoSellEnabled ? 'An' : 'Aus'}<span class="price">${
-      game.stats.autoSellPerSec > 0 ? rate(game.stats.autoSellPerSec) : 'keine Anlage'
+    auto.innerHTML = `${t('storage.autoSell', {
+      state: game.state.autoSellEnabled ? t('common.on') : t('common.off'),
+    })}<span class="price">${
+      game.stats.autoSellPerSec > 0 ? rate(game.stats.autoSellPerSec) : t('storage.noPlant')
     }</span>`;
     auto.addEventListener('click', () => {
       game.state.autoSellEnabled = !game.state.autoSellEnabled;
@@ -60,10 +63,10 @@ export class StorageScreen implements Screen {
     row.appendChild(auto);
     this.root.appendChild(row);
 
-    this.root.appendChild(el('div', 'screen-title', 'Materialien'));
+    this.root.appendChild(el('div', 'screen-title', t('storage.materials')));
     const owned = Content.materialsSorted().filter((m) => (game.state.storage[m.id] ?? 0) > 0);
     if (owned.length === 0) {
-      this.root.appendChild(el('div', 'empty', 'Noch nichts im Lager. Zerlege ein Fahrzeug im Hof.'));
+      this.root.appendChild(el('div', 'empty', t('storage.empty')));
     }
     for (const mat of owned) this.root.appendChild(this.materialRow(mat.id));
 
@@ -109,7 +112,7 @@ export class StorageScreen implements Screen {
     row.appendChild(amountBox);
 
     const actions = el('div', 'card-actions');
-    const sell = el('button', info.disposal ? '' : 'primary', info.disposal ? 'Entsorgen' : 'Verkaufen');
+    const sell = el('button', info.disposal ? '' : 'primary', info.disposal ? t('storage.dispose') : t('common.sell'));
     sell.addEventListener('click', () => {
       this.game.sellMaterial(materialId);
       this.refresh();
@@ -117,7 +120,7 @@ export class StorageScreen implements Screen {
     actions.appendChild(sell);
 
     const lock = el('button', locked ? '' : 'ghost', locked ? '🔒' : '🔓');
-    lock.title = locked ? 'Wird nicht automatisch verkauft' : 'Wird automatisch verkauft';
+    lock.title = locked ? t('storage.lockedHint') : t('storage.unlockedHint');
     lock.addEventListener('click', () => {
       if (locked) delete this.game.state.autoSellLocked[materialId];
       else this.game.state.autoSellLocked[materialId] = true;
@@ -126,7 +129,7 @@ export class StorageScreen implements Screen {
     actions.appendChild(lock);
 
     const rules = el('button', 'ghost', '⚙️');
-    rules.title = 'Lagerregel festlegen';
+    rules.title = t('storage.ruleTitle');
     rules.addEventListener('click', () => this.editRule(materialId));
     actions.appendChild(rules);
     row.appendChild(actions);
@@ -140,7 +143,7 @@ export class StorageScreen implements Screen {
     const current = ruleFor(game, materialId);
 
     const content = el('div');
-    const keepLabel = el('div', 'card-desc', 'Immer mindestens auf Lager halten:');
+    const keepLabel = el('div', 'card-desc', t('storage.keepAtLeast'));
     content.appendChild(keepLabel);
     const keep = el('input');
     keep.type = 'number';
@@ -150,7 +153,7 @@ export class StorageScreen implements Screen {
     styleInput(keep);
     content.appendChild(keep);
 
-    content.appendChild(el('div', 'card-desc', 'Erst automatisch verkaufen ab Preis (€/Stk):'));
+    content.appendChild(el('div', 'card-desc', t('storage.minPrice')));
     const minPrice = el('input');
     minPrice.type = 'number';
     minPrice.min = '0';
@@ -160,7 +163,7 @@ export class StorageScreen implements Screen {
     styleInput(minPrice);
     content.appendChild(minPrice);
 
-    const save = el('button', 'primary wide', 'Regel speichern');
+    const save = el('button', 'primary wide', t('storage.saveRule'));
     save.addEventListener('click', () => {
       setRule(game, materialId, {
         keep: Number(keep.value) || undefined,
@@ -171,7 +174,7 @@ export class StorageScreen implements Screen {
     });
     content.appendChild(save);
 
-    const clear = el('button', 'ghost wide', 'Regel löschen');
+    const clear = el('button', 'ghost wide', t('storage.clearRule'));
     clear.addEventListener('click', () => {
       setRule(game, materialId, {});
       close();
@@ -181,7 +184,7 @@ export class StorageScreen implements Screen {
 
     const close = openModal({
       title: `${def.icon} ${def.name}`,
-      body: 'Dauerauftrag für die Verkaufsautomatik. Gilt auch für „Alles verkaufen".',
+      body: t('storage.ruleBody'),
       content,
     });
   }
