@@ -18,6 +18,8 @@ src/
     trade.ts       Verträge, Auktionslose, Fundstücke
     lots.ts        Kartengeometrie der Grundstücke
     research.ts    Forschungsbaum + Prestige-Boni
+    company.ts     Personal, Löhne, Prioritäten, Kennzahlen
+    fleet.ts       Logistikfahrzeug-Klassen + Verkehrsregeln
     index.ts       Registry + Inhalts-Validierung
 
   core/          Infrastruktur ohne Spiellogik (Events, Formatierung, Zufall)
@@ -37,11 +39,17 @@ src/
     collection.ts  Zufallsfunde und Vitrine
     manager.ts     Tick-Einbindung und Firmenwert
 
+  company/       Unternehmen (GDD Kapitel 6)
+    payroll.ts     Löhne, Gebäudeunterhalt, Mitarbeitererfahrung
+    warehouse.ts   Lagerregeln (Mindestbestand, Sperre, Mindestpreis)
+    statistics.ts  Betriebszahlen: Tag/Woche, Effizienz, CO₂
+
   world/         Spielwelt (GDD Kapitel 3), unabhängig austauschbare Module
     iso.ts         Isometrische Projektion (64:36 ≈ 29,4°)
     map.ts         Gelände, Zonen, Straßen, Bauflächen, Grundstücksgrenzen
     buildings.ts   Platzierung und Ausbaustufen der Anlagen
-    traffic.ts     LKW, Straßenverkehr, Gabelstapler - fahren echte Wege
+    roads.ts       Routing-Graph: Kreuzungen, Dijkstra, Stauvermeidung
+    traffic.ts     Fahrzeug-KI: Disposition, echte Wege, Kollisionsvermeidung
     logistics.ts   sichtbarer Materialfluss auf den Förderstrecken
     environment.ts Tag/Nacht-Zyklus, Wetter, Atmosphäre
 
@@ -87,6 +95,8 @@ im passenden System.
 | Neuer Prestige-Bonus | `research.ts` (`PRESTIGE_PERKS`) | keiner |
 | Neues Grundstück | `lots.ts` (Geometrie) + `purchasables.ts` (Preis) | keiner |
 | Neue Dekoration | `purchasables.ts` + Modell in `models.ts` | keiner |
+| Neue Firmen-Ausrichtung | `company.ts` (`PRIORITIES`) | keiner |
+| Neue Logistikfahrzeug-Klasse | `fleet.ts` | keiner |
 | Neues Gebäudemodell | `models.ts` (Tabelleneintrag) | keiner |
 | Neue Maschine / Linie / Kraftwerk | `purchasables.ts` + Modell in `models.ts` | keiner |
 | Neue **Art** von Wirkung | `types.ts` + `stats.ts` + System | ja, klein |
@@ -161,14 +171,43 @@ kann vom Spieler per Antippen verschoben werden.
 
 Gezeichnet wird in einem Painter's-Algorithm-Durchgang, sortiert nach `tx + ty`.
 
+## Das Unternehmen
+
+Löhne und Gebäudeunterhalt laufen sekündlich vom Konto. Reicht das Geld nicht, kündigt niemand —
+das Team arbeitet mit 60 % Tempo weiter, bis der Rückstand getilgt ist. Ein Idle-Spiel, das den
+Fortschritt beim Zurückkommen zerstört hätte, wäre gegen Kapitel 1.
+
+Die Firmen-Ausrichtung ist bewusst **kein** Sonderweg: `PRIORITIES` liefert dieselben
+Effekt-Deskriptoren wie jede Maschine, `computeStats` faltet sie mit ein. Eine neue Ausrichtung
+ist damit ein Datensatz.
+
+Mitarbeitereffekte werden **nach** den Gebäuden gefaltet, damit der Aufenthaltsraum & Co. über
+`mult.staffProductivity` auf sie wirken können — die Reihenfolge in `computeStats` ist an dieser
+Stelle bedeutungstragend.
+
+## Die Logistik
+
+`roads.ts` baut aus denselben Polylinien, die die Karte zeichnet, einen Routing-Graphen. Ein
+Plotweg, der mitten auf die Hauptstraße trifft, wird beim Aufbau automatisch zur Kreuzung
+aufgetrennt — ohne diesen Schritt wäre jede Seitenstraße eine Sackgasse.
+
+Routing ist Dijkstra über `Länge × (1 + Auslastung × 0,85)`. Damit fallen drei GDD-Forderungen
+auf eine Formel zusammen: kürzeste Route bevorzugt, belegte Abschnitte werden gemieden, und bei
+Stau entsteht die Alternativroute von selbst. Voraussetzung dafür ist, dass es überhaupt eine
+zweite Verbindung gibt — deshalb hat der Hof eine Ringstraße.
+
+Transportaufträge gehören keinem Fahrzeug, sondern einer Warteschlange. Die Disposition gibt
+jeden Auftrag an die kleinste freie Klasse, die die Last trägt.
+
 ## Leistung auf Mittelklasse-Geräten
 
-- Keine Laufzeit-Abhängigkeiten; Build ≈ 37 kB gzip.
+- Keine Laufzeit-Abhängigkeiten; Build ≈ 58 kB gzip.
 - Canvas-Zeichnung aus Vektorformen, kein Asset-Laden; DPR auf 2 begrenzt.
 - Nur sichtbare Kacheln, Anlagen, Fahrzeuge und Pakete werden gezeichnet.
 - Animationen und Spawns pausieren, sobald der Hof nicht der aktive Screen ist.
-- Harte Obergrenzen: 5 Liefer-LKW, 4 Straßenfahrzeuge, 4 Gabelstapler, 40 Materialpakete,
-  160 Partikel, 24 schwebende Texte, 90 Bäume pro Bild.
+- Harte Obergrenzen: Flottengröße pro Fahrzeugklasse (`fleet.ts`), 4 Straßenfahrzeuge,
+  3 Roboter, 24 offene Transportaufträge, 40 Materialpakete, 160 Partikel, 24 schwebende Texte,
+  90 Bäume pro Bild.
 - Die Oberfläche baut nur den sichtbaren Screen neu, höchstens viermal pro Sekunde, und stellt
   die Scrollposition wieder her.
 
@@ -182,7 +221,9 @@ npm run simulate -- 180
 ```
 
 `scripts/simulate.mjs` spielt das Spiel headless in Node (die `game/`-Schicht ist DOM-frei) und
-prüft die Zusagen aus Kapitel 2: mindestens fünf Entscheidungen in den ersten zehn Minuten,
-kein Stillstand über fünf Minuten, erreichte Automatisierung, sichtbares Wachstum.
+prüft die Zusagen der Kapitel 2 bis 6: mindestens fünf Entscheidungen in den ersten zehn
+Minuten, kein Stillstand über fünf Minuten, erreichte Automatisierung, sichtbares Wachstum,
+gedeckter Strom, gepflegte Anlagen, bezahlte Löhne, tragbare Betriebskosten, wirksame
+Prioritäten und ein Straßennetz, das jedes gekaufte Grundstück erreicht.
 
 Nach jeder Änderung an `src/data/*` sollte dieser Lauf wiederholt werden.

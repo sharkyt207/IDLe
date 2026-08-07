@@ -1,5 +1,6 @@
 import { fmt, money } from '../core/format';
 import { MACHINES, levelMultiplier } from '../data/machines';
+import { COMPANY, staffLevel, staffProductivity, staffXpForLevel } from '../data/company';
 import type { PurchasableDef } from '../data/types';
 import type { Game } from '../game/game';
 import { meetsRequirement, nextCost, requirementText } from '../game/stats';
@@ -46,6 +47,35 @@ export function purchasableCard(game: Game, def: PurchasableDef, onBuy: () => vo
         `Zustand ${fmt(condition * 100, 0)} %`,
       ),
     );
+  }
+
+  if (def.category === 'employee' && count > 0) {
+    const xp = game.state.staffXp[def.id] ?? 0;
+    const level = staffLevel(xp);
+    const productivity = staffProductivity(level);
+    const wage = (def.salary ?? 0) * count * (1 + (level - 1) * COMPANY.staff.salaryPerLevel);
+    body.appendChild(
+      el(
+        'div',
+        'card-desc',
+        `Erfahrung ${level}/${COMPANY.staff.maxLevel} · Leistung ×${productivity.toFixed(2)} · Lohn ${money(wage)}/s`,
+      ),
+    );
+    if (level < COMPANY.staff.maxLevel) {
+      const bar = el('div', 'xp-bar');
+      const fill = el('i');
+      let spent = 0;
+      for (let l = 1; l < level; l++) spent += staffXpForLevel(l);
+      fill.style.width = `${Math.min(100, ((xp - spent) / staffXpForLevel(level)) * 100)}%`;
+      bar.appendChild(fill);
+      bar.style.marginTop = '4px';
+      body.appendChild(bar);
+    }
+  } else if (def.category === 'employee' && def.salary) {
+    body.appendChild(el('div', 'card-desc', `Lohn ${money(def.salary)}/s pro Person`));
+  }
+  if (def.upkeep) {
+    body.appendChild(el('div', 'card-desc', `Unterhalt ${money(def.upkeep)}/s pro Stufe`));
   }
 
   if (!unlocked) {

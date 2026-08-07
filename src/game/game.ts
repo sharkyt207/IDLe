@@ -14,6 +14,9 @@ import { drift, isDisposal, unitPrice } from '../economy/market';
 import { addToCollection, rollFind } from '../economy/collection';
 import { companyValue, tickEconomy } from '../economy/manager';
 import { reservedMaterials } from '../economy/contracts';
+import { payrollFactor, tickPayroll } from '../company/payroll';
+import { tickMetrics } from '../company/statistics';
+import { sellableAmount } from '../company/warehouse';
 
 /**
  * The game orchestrator. Owns the state, the derived stats and the fixed-step
@@ -64,6 +67,18 @@ export class Game {
   /** Flags a cheap stat change (wear) for the next throttled rebuild. */
   markStatsDirty(): void {
     this.statsDirty = true;
+  }
+
+  /**
+   * Sets the company focus (GDD chapter 6). It is a plain effect source, so the
+   * switch is instant and free - the player is meant to retune, not to commit.
+   */
+  setPriority(id: string): void {
+    const def = Content.priority(id);
+    if (!def || this.state.priority === id) return;
+    this.state.priority = id;
+    this.recompute();
+    this.bus.emit('notice', { text: `Ausrichtung: ${def.name}`, icon: def.icon, tone: 'info' });
   }
 
   /**
@@ -135,11 +150,13 @@ export class Game {
     this.state.money += amount;
     this.state.runEarned += amount;
     this.state.lifetimeEarned += amount;
+    this.state.metrics.dayEarned += amount;
   }
 
   spendMoney(amount: number): boolean {
     if (this.state.money < amount) return false;
     this.state.money -= amount;
+    this.state.metrics.daySpent += amount;
     return true;
   }
 
@@ -153,6 +170,7 @@ export class Game {
     const free = this.storageFree();
     const fits = Math.min(amount, free);
     if (fits > 0) addToStorage(this.state, materialId, fits, this.rollQuality());
+    this.state.metrics.unitsRecycled += amount;
 
     const overflow = amount - fits;
     if (overflow <= 0) return;
@@ -307,8 +325,11 @@ export class Game {
     const reserved = reservedMaterials(this);
     let total = 0;
     for (const id of Object.keys({ ...this.state.storage })) {
-      if (this.state.autoSellLocked[id] || reserved.has(id)) continue;
-      total += this.sellMaterial(id);
+      if (reserved.has(id)) continue;
+      // Standing orders (keep N, never sell) apply to "sell everything" too.
+      const sellable = sellableAmount(this, id);
+      if (sellable <= 0) continue;
+      total += this.sellMaterial(id, sellable);
     }
     if (total > 0) {
       this.bus.emit('notice', { text: `Alles verkauft`, icon: '💶', tone: 'good' });
@@ -433,14 +454,14 @@ export class Game {
     // Research timer
     const active = this.state.research.active;
     if (active) {
-      active.remaining -= dt;
+      active.remaining -= dt * this.stats.mult.researchSpeed;
       if (active.remaining <= 0) this.finishResearch(active.id);
     }
 
     runLogistics(this, dt, efficiency);
 
     if (this.state.active && this.stats.teardownRate > 0) {
-      applyTeardownWork(this, this.stats.teardownRate * dt * efficiency);
+      applyTeardownWork(this, this.stats.teardownRate * dt * efficiency * payrollFactor(this));
     }
 
     runProcessing(this, dt, efficiency);
@@ -449,6 +470,8 @@ export class Game {
 
     const working = !!this.state.active || this.state.queue.length > 0;
     runMaintenance(this, dt, working, efficiency);
+    tickPayroll(this, dt, working);
+    tickMetrics(this, dt);
     this.statsTimer += dt;
     if (this.statsDirty && this.statsTimer >= 0.5) {
       this.statsTimer = 0;

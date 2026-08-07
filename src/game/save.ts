@@ -67,6 +67,35 @@ function sanitize(raw: Record<string, unknown>): GameState {
     }
   }
 
+  state.staffXp = {};
+  for (const [id, xp] of Object.entries(src.staffXp ?? {})) {
+    if (Content.purchasable(id) && typeof xp === 'number' && xp > 0) state.staffXp[id] = xp;
+  }
+
+  state.rules = {};
+  for (const [id, rule] of Object.entries(src.rules ?? {})) {
+    if (!Content.material(id) || !rule || typeof rule !== 'object') continue;
+    const clean: { keep?: number; minPrice?: number } = {};
+    const r = rule as { keep?: unknown; minPrice?: unknown };
+    if (typeof r.keep === 'number' && r.keep > 0) clean.keep = Math.floor(r.keep);
+    if (typeof r.minPrice === 'number' && r.minPrice > 0) clean.minPrice = r.minPrice;
+    if (Object.keys(clean).length > 0) state.rules[id] = clean;
+  }
+
+  state.priority = Content.priority(String(src.priority)) ? String(src.priority) : 'balanced';
+
+  state.metrics = {
+    dayTime: Math.max(0, num(src.metrics?.dayTime, 0)),
+    dayEarned: Math.max(0, num(src.metrics?.dayEarned, 0)),
+    daySpent: Math.max(0, num(src.metrics?.daySpent, 0)),
+    dayHistory: (src.metrics?.dayHistory ?? [])
+      .filter((d) => d && typeof d === 'object')
+      .slice(-7)
+      .map((d) => ({ earned: Math.max(0, num(d.earned, 0)), spent: Math.max(0, num(d.spent, 0)) })),
+    unitsRecycled: Math.max(0, num(src.metrics?.unitsRecycled, 0)),
+    arrears: Math.max(0, num(src.metrics?.arrears, 0)),
+  };
+
   // Quality only makes sense for material that is actually there.
   state.quality = {};
   for (const [id, value] of Object.entries(src.quality ?? {})) {

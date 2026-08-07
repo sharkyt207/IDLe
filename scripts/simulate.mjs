@@ -30,8 +30,25 @@ await build({
   },
 });
 
-const { Game, Content, nextCost, acceptOffer, deliver, canAccept, companyValue, serviceAll, serviceCost, machineList } =
-  await import(resolve(outDir, 'sim.mjs'));
+const {
+  Game,
+  Content,
+  nextCost,
+  acceptOffer,
+  deliver,
+  canAccept,
+  companyValue,
+  serviceAll,
+  serviceCost,
+  machineList,
+  runningCosts,
+  staffRows,
+  report,
+  COMPANY,
+  RoadNetwork,
+  MapSystem,
+  FLEET,
+} = await import(resolve(outDir, 'sim.mjs'));
 
 const minutes = Number(process.argv[2] ?? 30);
 const TICK = 0.1;
@@ -62,7 +79,10 @@ game.bus.on('levelUp', ({ level }) => {
  * (nachschub → verkauf → zerlegen), then push the strongest tier affordable.
  */
 function invest() {
-  const reserve = game.buyPrice(game.state.autoBuyVehicle) * 6;
+  // A company with staff has to keep a float: deliveries for the pad plus two
+  // minutes of wages and upkeep. Spending down to zero would mean unpaid wages
+  // on the very next tick.
+  const reserve = game.buyPrice(game.state.autoBuyVehicle) * 6 + runningCosts(game) * 120;
   for (let guard = 0; guard < 8; guard++) {
     const affordable = Content.purchasables
       .filter((def) => game.canBuy(def.id))
@@ -182,6 +202,37 @@ function trade() {
   }
 }
 
+/**
+ * Company focus (GDD chapter 6). The player does not micro-manage jobs, they
+ * retune the direction when the yard starts to hurt somewhere.
+ */
+let priorityChanges = 0;
+/** Best experience level reached at any point - prestige resets the payroll. */
+let bestStaffLevel = 1;
+function watchStaff() {
+  for (const row of staffRows(game)) {
+    if (row.level > bestStaffLevel) {
+      bestStaffLevel = row.level;
+      events.push([clock, `${row.name}: Erfahrungsstufe ${row.level}`]);
+    }
+  }
+}
+
+function choosePriority() {
+  const want =
+    game.stats.condition < 0.7
+      ? 'maintenance'
+      : game.storageUsed() > game.stats.storage * 0.85
+        ? 'storage'
+        : game.state.research.active
+          ? 'research'
+          : 'production';
+  if (game.state.priority === want) return;
+  game.setPriority(want);
+  priorityChanges++;
+  events.push([clock, `Ausrichtung: ${Content.priority(want)?.name ?? want}`]);
+}
+
 /** Keeps the machines serviced once wear starts to bite. */
 let services = 0;
 function maintain() {
@@ -232,6 +283,8 @@ for (let step = 0; step < totalSteps; step++) {
     research();
     trade();
     maintain();
+    watchStaff();
+    choosePriority();
     invest();
     maybePrestige();
     if (!game.state.active && game.state.queue.length === 0) {
@@ -286,6 +339,40 @@ console.log('  Anlagenzustand     ', Math.round(game.stats.condition * 100), '% 
 const lines = Content.purchasables.filter((d) => d.category === 'line').reduce((a, d) => a + (game.state.owned[d.id] ?? 0), 0);
 console.log('  Produktionslinien  ', lines);
 
+// --- Kapitel 6: Mitarbeiter, Kosten, Logistik ------------------------------
+const staff = staffRows(game);
+const headcount = staff.reduce((a, r) => a + r.count, 0);
+const topLevel = Math.max(bestStaffLevel, ...staff.map((r) => r.level));
+const stats = report(game);
+const costs = runningCosts(game);
+const revenuePerSec = game.state.lifetimeEarned / Math.max(1, clock);
+
+console.log('  Mitarbeiter        ', headcount, '· beste Erfahrung', topLevel, '/', COMPANY.staff.maxLevel);
+console.log('  Laufende Kosten    ', costs.toFixed(2), '€/s · Umsatz', revenuePerSec.toFixed(2), '€/s');
+console.log('  Lohnrückstand      ', Math.round(game.state.metrics.arrears).toLocaleString('de-DE'), '€');
+console.log('  Ausrichtung        ', Content.priority(game.state.priority)?.name ?? game.state.priority,
+  `(${priorityChanges}× gewechselt)`);
+console.log('  Effizienz          ', Math.round(stats.efficiency * 100), '%');
+console.log('  CO₂-Einsparung     ', Math.round(stats.co2Saved).toLocaleString('de-DE'), 'kg');
+console.log('  Fuhrpark           ', FLEET.filter((f) => !f.unlock || (game.state.owned[f.unlock] ?? 0) > 0).length,
+  '/', FLEET.length, 'Klassen');
+
+// The logistics network has to actually connect every plot the player bought -
+// a plot no vehicle can reach would break "Keine Teleportation".
+const map = new MapSystem();
+map.sync(game.state);
+const roads = new RoadNetwork();
+roads.build(map.roads);
+let reachable = 0;
+const lotsWithRoad = map.lots.filter((lot) => lot.road.length > 1);
+for (const lot of lotsWithRoad) {
+  const target = lot.road[lot.road.length - 1];
+  const route = roads.route({ x: 21.5, y: 7.5 }, { x: target.x, y: target.y });
+  if (route.edges.length > 0) reachable++;
+}
+console.log('  Straßennetz        ', roads.nodes.length, 'Knoten ·', roads.edges.length, 'Kanten ·',
+  reachable, '/', lotsWithRoad.length, 'Grundstücke angebunden');
+
 console.log('\nGDD-Prüfungen:');
 check('Erste 10 Minuten: mindestens 5 Entscheidungen', purchasesInFirstTen >= 5, `${purchasesInFirstTen} Käufe`);
 check('Erste 30 Min ohne Stillstand > 5 Min', longestGap <= 300, `längste Pause ${fmtTime(longestGap)}`);
@@ -295,6 +382,14 @@ check('Gelände wächst (mind. 1 Grundstück)', lots.length >= 1, `${lots.length
 check('Wirtschaft: Verträge laufen', contractsDone >= 1, `${contractsDone} erfüllt`);
 check('Strom gedeckt', game.stats.power.factor >= 0.99, `${Math.round(game.stats.power.factor * 100)} %`);
 check('Anlagen gepflegt (>60 %)', game.stats.condition > 0.6, `${Math.round(game.stats.condition * 100)} %`);
+check('Team eingestellt', headcount >= 1, `${headcount} Mitarbeiter`);
+check('Mitarbeiter sammeln Erfahrung', topLevel >= 2, `Stufe ${topLevel}`);
+check('Löhne bezahlt', game.state.metrics.arrears < 1, `Rückstand ${Math.round(game.state.metrics.arrears)} €`);
+check('Laufende Kosten tragbar (<50 % Umsatz)', costs < revenuePerSec * 0.5,
+  `${costs.toFixed(2)} von ${revenuePerSec.toFixed(2)} €/s`);
+check('Prioritäten wirken', priorityChanges >= 1, `${priorityChanges} Wechsel`);
+check('Alle Grundstücke ans Straßennetz angebunden', reachable === lotsWithRoad.length,
+  `${reachable}/${lotsWithRoad.length}`);
 
 function check(label, ok, detail) {
   console.log(`  ${ok ? '✅' : '❌'} ${label} — ${detail}`);

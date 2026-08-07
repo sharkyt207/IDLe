@@ -1,5 +1,6 @@
 import { BALANCE } from '../../data/balance';
 import { reservedMaterials } from '../../economy/contracts';
+import { sellableAmount } from '../../company/warehouse';
 import { removeFromStorage } from '../../economy/inventory';
 import type { Game } from '../game';
 
@@ -37,10 +38,11 @@ export function pickAutoSellTarget(game: Game): string | null {
   const reserved = reservedMaterials(game);
   let best: string | null = null;
   let bestValue = 0;
-  for (const [id, amount] of Object.entries(game.state.storage)) {
-    if (game.state.autoSellLocked[id] || reserved.has(id)) continue;
-    if (amount <= 0) continue;
-    const value = amount * game.sellPrice(id);
+  for (const id of Object.keys(game.state.storage)) {
+    if (reserved.has(id)) continue;
+    const sellable = sellableAmount(game, id);
+    if (sellable <= 0) continue;
+    const value = sellable * game.sellPrice(id);
     if (value <= 0) continue;
     if (value > bestValue) {
       bestValue = value;
@@ -84,8 +86,8 @@ export function runAutoSell(game: Game, dt: number, efficiency: number): void {
   for (let guard = 0; guard < 12 && budget > 0; guard++) {
     const target = pickAutoSellTarget(game) ?? disposalTarget(game);
     if (!target) break;
-    const have = game.state.storage[target] ?? 0;
-    const qty = Math.min(have, budget);
+    const allowed = game.isDisposal(target) ? (game.state.storage[target] ?? 0) : sellableAmount(game, target);
+    const qty = Math.min(allowed, budget);
     if (qty <= 0) break;
     sellUnits(game, target, qty, BALANCE.autoSellPriceFactor, true);
     budget -= qty;

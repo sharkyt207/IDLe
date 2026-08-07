@@ -72,7 +72,7 @@ export function runMaintenance(game: Game, dt: number, running: boolean, efficie
   const machines = machineList(game);
   if (machines.length === 0) return;
 
-  const wear = running ? MACHINES.wear.perSecond * dt * efficiency : 0;
+  const wear = running ? MACHINES.wear.perSecond * dt * efficiency * game.stats.mult.wear : 0;
   // Automatic maintenance is shared across the yard.
   const repair = (game.stats.autoService * dt) / machines.length;
   if (wear <= 0 && repair <= 0) return;

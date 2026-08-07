@@ -3,6 +3,7 @@ import { PURCHASABLES } from './purchasables';
 import { PRESTIGE_PERKS, RESEARCH } from './research';
 import { VEHICLES } from './vehicles';
 import { AUCTION_LOTS, COLLECTIBLES, CONTRACTS } from './trade';
+import { PRIORITIES, type PriorityDef } from './company';
 import type {
   AuctionLotDef,
   CollectibleDef,
@@ -41,6 +42,7 @@ const perkMap = index(PRESTIGE_PERKS);
 const contractMap = index(CONTRACTS);
 const auctionMap = index(AUCTION_LOTS);
 const collectibleMap = index(COLLECTIBLES);
+const priorityMap = index(PRIORITIES);
 
 export const Content = {
   materials: MATERIALS as readonly MaterialDef[],
@@ -52,6 +54,7 @@ export const Content = {
   contracts: CONTRACTS as readonly ContractDef[],
   auctionLots: AUCTION_LOTS as readonly AuctionLotDef[],
   collectibles: COLLECTIBLES as readonly CollectibleDef[],
+  priorities: PRIORITIES as readonly PriorityDef[],
 
   material: (id: string) => materialMap.get(id),
   recipe: (id: string) => recipeMap.get(id),
@@ -62,6 +65,7 @@ export const Content = {
   contract: (id: string) => contractMap.get(id),
   auctionLot: (id: string) => auctionMap.get(id),
   collectible: (id: string) => collectibleMap.get(id),
+  priority: (id: string) => priorityMap.get(id),
 
   /** Materials sorted for the storage screen: tier, then value. */
   materialsSorted(): MaterialDef[] {

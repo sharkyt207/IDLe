@@ -6,8 +6,9 @@ Schritt ein automatisiertes Recycling-Imperium.
 Umsetzung von [GDD Kapitel 1 (Vision)](docs/gdd/01-vision.md),
 [Kapitel 2 (Core Gameplay)](docs/gdd/02-core-gameplay.md),
 [Kapitel 3 (Spielwelt)](docs/gdd/03-world.md),
-[Kapitel 4 (Wirtschaft)](docs/gdd/04-economy.md) und
-[Kapitel 5 (Maschinen)](docs/gdd/05-machines.md).
+[Kapitel 4 (Wirtschaft)](docs/gdd/04-economy.md),
+[Kapitel 5 (Maschinen)](docs/gdd/05-machines.md) und
+[Kapitel 6 (Unternehmen)](docs/gdd/06-company.md).
 
 ## Loslegen
 
@@ -47,7 +48,20 @@ acht Vertragskunden mit laufendem Einkommen, Auktionen gegen KI-Bieter, neun Sam
 und ein Firmenwert aus allem, was gebaut wurde.
 
 **Forschung** mit 21 Knoten in vier Zweigen, **Prestige** mit sieben dauerhaften Boni,
-60+ Kaufobjekte.
+80+ Kaufobjekte.
+
+**Unternehmen statt Maschinenpark** — Mitarbeiter kosten Gehalt, sammeln Erfahrung (10 Stufen)
+und werden dadurch besser; Gebäude kosten Unterhalt. Wer die Löhne nicht zahlen kann, verliert
+niemanden — das Team arbeitet langsamer, bis der Rückstand getilgt ist. Statt Einzelaufgaben
+setzt der Spieler eine **Ausrichtung** (Produktion, Wartung, Forschung, Lager, Verträge), und
+**Lagerregeln** halten Mindestbestände, sperren Material oder warten auf einen Mindestpreis. Die
+**Betriebszahlen** zeigen Tages- und Wochengewinn, Produktionsmenge, Stromverbrauch,
+Mitarbeiterzahl, Firmenwert, Effizienz und CO₂-Einsparung.
+
+**Logistik auf echten Straßen** — sechs Fahrzeugklassen vom Hubwagen bis zum Containerfahrzeug
+fahren einen echten Routing-Graphen: kürzeste Route bevorzugt, Kollisionsvermeidung durch
+Abstandhalten, und bei Stau geht es über die Ringstraße. Transportaufträge landen in einer
+Warteschlange und gehen an die kleinste freie Klasse, die die Last trägt.
 
 **Isometrische Spielwelt**, die mit jedem Kauf sichtbar wächst: zehn zukaufbare Grundstücke vom
 Lagerplatz bis zum eigenen Stahlwerk, Anlagen mit fünf Ausbaustufen, LKW die echte Wege über die
@@ -75,7 +89,7 @@ Speicherstände sind versioniert, werden beim Laden saniert und überstehen Inha
 
 ## Stand
 
-Spielbarer Prototyp. Die Kapitel 1 bis 5 des GDD sind umgesetzt; Kapitel 6 ff. sind noch offen.
+Spielbarer Prototyp. Die Kapitel 1 bis 6 des GDD sind umgesetzt; Kapitel 7 ff. sind noch offen.
 
 Bewusst noch nicht enthalten: **Ton**. Das GDD nennt Metallgeräusche als Feedback — der Prototyp
 liefert stattdessen Partikel, schwebende Beträge, Fortschrittsbalken und optionale Vibration.

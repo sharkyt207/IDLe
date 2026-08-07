@@ -1,6 +1,7 @@
 import {
   BASE_BANDS,
   BASE_LOT,
+  BYPASS_ROAD,
   LOTS,
   MAIN_ROAD,
   STREET_Y,
@@ -47,6 +48,7 @@ export class MapSystem {
     this.roadCache = [
       { points: [{ x: -2, y: STREET_Y }, { x: MAP_TILES + 2, y: STREET_Y }], street: true },
       { points: MAIN_ROAD },
+      { points: BYPASS_ROAD },
       ...this.ownedLotsCache.filter((lot) => lot.road.length > 1).map((lot) => ({ points: lot.road })),
     ];
 

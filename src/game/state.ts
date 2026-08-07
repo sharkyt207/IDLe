@@ -47,6 +47,8 @@ export interface GameState {
   owned: Record<string, number>;
   /** machine id -> condition 0…1. Missing means "as good as new". */
   condition: Record<string, number>;
+  /** employee id -> accumulated experience. */
+  staffXp: Record<string, number>;
 
   research: { done: string[]; active: ResearchProgress | null };
 
@@ -60,6 +62,10 @@ export interface GameState {
   autoSellEnabled: boolean;
   /** Materials the player holds back from auto-selling (e.g. smelter input). */
   autoSellLocked: Record<string, boolean>;
+  /** Warehouse rules per material (GDD chapter 6). */
+  rules: Record<string, WarehouseRule>;
+  /** The company focus the operation follows. */
+  priority: string;
 
   prestige: {
     reputation: number;
@@ -107,7 +113,29 @@ export interface GameState {
     discovered: string[];
   };
 
+  /** Rolling business metrics for the statistics screen. */
+  metrics: {
+    /** Seconds into the current business day. */
+    dayTime: number;
+    dayEarned: number;
+    daySpent: number;
+    /** Completed days, newest last, capped to one week. */
+    dayHistory: { earned: number; spent: number }[];
+    /** Units of material ever recycled - basis for the CO₂ figure. */
+    unitsRecycled: number;
+    /** Wages and upkeep still owed because the account ran dry. */
+    arrears: number;
+  };
+
   settings: { haptics: boolean };
+}
+
+/** Long-term storage strategy for one material. */
+export interface WarehouseRule {
+  /** Never auto-sell below this stock. */
+  keep?: number;
+  /** Only auto-sell when a unit fetches at least this much. */
+  minPrice?: number;
 }
 
 /** A customer's open request. */
@@ -164,6 +192,7 @@ export function createInitialState(carryPrestige?: GameState['prestige']): GameS
     quality: {},
     owned: {},
     condition: {},
+    staffXp: {},
 
     research: { done: [], active: null },
 
@@ -174,6 +203,8 @@ export function createInitialState(carryPrestige?: GameState['prestige']): GameS
     autoBuyEnabled: true,
     autoSellEnabled: true,
     autoSellLocked: {},
+    rules: {},
+    priority: 'balanced',
 
     prestige: carryPrestige ?? { reputation: 0, perks: {}, runs: 0, bestRun: 0 },
 
@@ -185,6 +216,8 @@ export function createInitialState(carryPrestige?: GameState['prestige']): GameS
     tutorial: { step: 0, done: false, choiceOffered: false },
 
     progressStats: { vehiclesDone: 0, partsRemoved: 0, taps: 0, sales: 0, purchases: 0, discovered: [] },
+
+    metrics: { dayTime: 0, dayEarned: 0, daySpent: 0, dayHistory: [], unitsRecycled: 0, arrears: 0 },
 
     settings: { haptics: true },
   };

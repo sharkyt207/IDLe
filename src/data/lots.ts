@@ -145,8 +145,10 @@ export const LOTS: LotDef[] = [
     zone: 'rail',
     rect: { x: 16, y: 32, w: 12, h: 7 },
     landmark: 'station',
+    // Every plot road has to start on the main road or the public street -
+    // a road that begins in the middle of nowhere is a plot no truck reaches.
     road: [
-      { x: 21.5, y: 31 },
+      { x: 21.5, y: 24 },
       { x: 21.5, y: 35 },
     ],
   },
@@ -157,7 +159,7 @@ export const LOTS: LotDef[] = [
     rect: { x: 37, y: 12, w: 7, h: 14 },
     landmark: 'factory',
     road: [
-      { x: 32, y: 19.5 },
+      { x: 21.5, y: 19.5 },
       { x: 40, y: 19.5 },
     ],
   },
@@ -168,8 +170,8 @@ export const LOTS: LotDef[] = [
     rect: { x: 1, y: 12, w: 6, h: 14 },
     landmark: 'steel_mill',
     road: [
-      { x: 12, y: 19.5 },
-      { x: 4, y: 19.5 },
+      { x: 21.5, y: 20.5 },
+      { x: 4, y: 20.5 },
     ],
   },
 ];
@@ -183,6 +185,19 @@ export const MAIN_ROAD: { x: number; y: number }[] = [
   { x: 21.5, y: 24 },
 ];
 
+/**
+ * The eastern ring road. It runs from the delivery apron down the fence and
+ * rejoins the main road at the bottom, so the yard has a real loop rather than
+ * one corridor. Without a second way round, "bei Stau wird eine Alternativroute
+ * gewählt" (GDD chapter 6) could never happen.
+ */
+export const BYPASS_ROAD: { x: number; y: number }[] = [
+  { x: 21.5, y: 9.5 },
+  { x: 26.5, y: 9.5 },
+  { x: 26.5, y: 24 },
+  { x: 21.5, y: 24 },
+];
+
 /** Where delivery trucks stop to unload. */
 export const UNLOAD_POINT = { x: 21.5, y: 10.5 };
 
@@ -192,7 +207,7 @@ export const BASE_FIXTURES: { model: string; tx: number; ty: number; rot?: numbe
   { model: 'office_container', tx: 25, ty: 9 },
   { model: 'workbench', tx: 17, ty: 17 },
   { model: 'scrap_pile', tx: 25, ty: 13 },
-  { model: 'scrap_pile', tx: 26, ty: 14 },
+  { model: 'scrap_pile', tx: 25, ty: 15 },
   { model: 'scrap_pile', tx: 17, ty: 13 },
 ];
 

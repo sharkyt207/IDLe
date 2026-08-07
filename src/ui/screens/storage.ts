@@ -1,6 +1,8 @@
 import { Content } from '../../data';
 import { qualityName } from '../../data/economy';
 import { priceInfo } from '../../economy/market';
+import { ruleFor, ruleText, setRule } from '../../company/warehouse';
+import { openModal } from '../modal';
 import { fmt, money, rate, units } from '../../core/format';
 import type { Game } from '../../game/game';
 import { craftsAvailable, craftsThatFit } from '../../game/systems/processing';
@@ -96,6 +98,8 @@ export class StorageScreen implements Screen {
         el('div', 'mat-price', `Qualität: ${qualityName(game.state.quality[materialId] ?? game.stats.quality)}`),
       );
     }
+    const rule = ruleText(game, materialId);
+    if (rule) body.appendChild(el('div', 'card-note', `📋 ${rule}`));
     row.appendChild(body);
 
     const amountBox = el('div');
@@ -120,8 +124,66 @@ export class StorageScreen implements Screen {
       this.refresh();
     });
     actions.appendChild(lock);
+
+    const rules = el('button', 'ghost', '⚙️');
+    rules.title = 'Lagerregel festlegen';
+    rules.addEventListener('click', () => this.editRule(materialId));
+    actions.appendChild(rules);
     row.appendChild(actions);
     return row;
+  }
+
+  /** Standing order for one material (GDD chapter 6: Lagerverwaltung). */
+  private editRule(materialId: string): void {
+    const { game } = this;
+    const def = Content.material(materialId)!;
+    const current = ruleFor(game, materialId);
+
+    const content = el('div');
+    const keepLabel = el('div', 'card-desc', 'Immer mindestens auf Lager halten:');
+    content.appendChild(keepLabel);
+    const keep = el('input');
+    keep.type = 'number';
+    keep.min = '0';
+    keep.value = String(current.keep ?? '');
+    keep.placeholder = '0';
+    styleInput(keep);
+    content.appendChild(keep);
+
+    content.appendChild(el('div', 'card-desc', 'Erst automatisch verkaufen ab Preis (€/Stk):'));
+    const minPrice = el('input');
+    minPrice.type = 'number';
+    minPrice.min = '0';
+    minPrice.step = '0.1';
+    minPrice.value = String(current.minPrice ?? '');
+    minPrice.placeholder = String(def.basePrice.toFixed(2));
+    styleInput(minPrice);
+    content.appendChild(minPrice);
+
+    const save = el('button', 'primary wide', 'Regel speichern');
+    save.addEventListener('click', () => {
+      setRule(game, materialId, {
+        keep: Number(keep.value) || undefined,
+        minPrice: Number(minPrice.value) || undefined,
+      });
+      close();
+      this.refresh();
+    });
+    content.appendChild(save);
+
+    const clear = el('button', 'ghost wide', 'Regel löschen');
+    clear.addEventListener('click', () => {
+      setRule(game, materialId, {});
+      close();
+      this.refresh();
+    });
+    content.appendChild(clear);
+
+    const close = openModal({
+      title: `${def.icon} ${def.name}`,
+      body: 'Dauerauftrag für die Verkaufsautomatik. Gilt auch für „Alles verkaufen".',
+      content,
+    });
   }
 
   /** Production chains - only shown once the Schmelzerei exists. */
@@ -166,6 +228,11 @@ export class StorageScreen implements Screen {
       this.root.appendChild(card);
     }
   }
+}
+
+function styleInput(input: HTMLInputElement): void {
+  input.style.cssText =
+    'width:100%;margin:4px 0 10px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px;font-size:14px;';
 }
 
 function stat(value: string, label: string): HTMLElement {

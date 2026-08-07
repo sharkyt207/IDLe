@@ -69,6 +69,8 @@ export type Effect =
    * (Wirbelstromseparator, Batteriestation).
    */
   | { kind: 'yield'; material?: string; factor: number }
+  /** Extra contracts the company can run at once. */
+  | { kind: 'contractSlots'; amount: number }
   /** Unlocks content that is otherwise gated (vehicles, recipes, purchasables). */
   | { kind: 'unlock'; id: string };
 
@@ -81,7 +83,14 @@ export type MultiplierTarget =
   | 'xpGain'
   | 'rareFind'
   | 'autoSell'
-  | 'autoBuy';
+  | 'autoBuy'
+  | 'storage'
+  | 'powerUse'
+  | 'wear'
+  | 'autoService'
+  | 'researchSpeed'
+  | 'contractReward'
+  | 'staffProductivity';
 
 /** Requirement gate. All listed conditions must hold. */
 export interface Requirement {
@@ -190,6 +199,10 @@ export interface PurchasableDef {
   /** Maximum copies/levels. */
   maxCount: number;
   requires?: Requirement;
+  /** Wage per second per head (employees) - charged continuously. */
+  salary?: number;
+  /** Upkeep per second per copy (buildings and plants). */
+  upkeep?: number;
   /**
    * Effects granted per owned copy. For `machine` entries `maxCount` is the
    * **level cap** and effects scale by the level multiplier instead, so a

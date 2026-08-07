@@ -34,7 +34,7 @@ function makeOffer(game: Game, def: ContractDef): ContractOffer {
     material: entry.material,
     amount: Math.max(1, Math.round(entry.amount * scale)),
   }));
-  const reward = demandValue(game, demand) * ECONOMY.contracts.rewardFactor;
+  const reward = demandValue(game, demand) * ECONOMY.contracts.rewardFactor * game.stats.mult.contractReward;
   const recurring = reward * ECONOMY.contracts.recurringShare;
 
   return {
@@ -63,8 +63,12 @@ export function refreshOffers(game: Game): void {
   trade.offerTimer = ECONOMY.contracts.offerRefreshSeconds;
 }
 
+export function maxContracts(game: Game): number {
+  return ECONOMY.contracts.maxActive + game.stats.contractSlots;
+}
+
 export function canAccept(game: Game): boolean {
-  return game.state.trade.active.length < ECONOMY.contracts.maxActive;
+  return game.state.trade.active.length < maxContracts(game);
 }
 
 export function acceptOffer(game: Game, key: string): boolean {

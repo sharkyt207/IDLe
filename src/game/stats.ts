@@ -1,6 +1,7 @@
 import { BALANCE } from '../data/balance';
 import { ECONOMY } from '../data/economy';
 import { MACHINES, conditionFactor, levelMultiplier, powerFactor } from '../data/machines';
+import { COMPANY, staffLevel, staffProductivity } from '../data/company';
 import { Content } from '../data';
 import type { Effect, MultiplierTarget, Requirement } from '../data/types';
 import type { GameState } from './state';
@@ -31,6 +32,8 @@ export interface Stats {
   condition: number;
   /** Condition points restored per second by automatic maintenance. */
   autoService: number;
+  /** Contracts that can run at the same time. */
+  contractSlots: number;
   /** Yield multipliers: '*' applies to everything, plus per-material entries. */
   yieldMult: Record<string, number>;
 }
@@ -45,6 +48,13 @@ const NEUTRAL: Record<MultiplierTarget, number> = {
   rareFind: 1,
   autoSell: 1,
   autoBuy: 1,
+  storage: 1,
+  powerUse: 1,
+  wear: 1,
+  autoService: 1,
+  researchSpeed: 1,
+  contractReward: 1,
+  staffProductivity: 1,
 };
 
 interface Accumulator {
@@ -63,6 +73,7 @@ interface Accumulator {
   power: number;
   powerUse: number;
   autoService: number;
+  contractSlots: number;
   yieldMult: Record<string, number>;
 }
 
@@ -110,6 +121,9 @@ function applyEffect(acc: Accumulator, effect: Effect, count: number): void {
     case 'autoService':
       acc.autoService += effect.amount * count;
       break;
+    case 'contractSlots':
+      acc.contractSlots += effect.amount * count;
+      break;
     case 'yield': {
       const key = effect.material ?? '*';
       acc.yieldMult[key] = (acc.yieldMult[key] ?? 1) * Math.pow(effect.factor, count);
@@ -143,11 +157,14 @@ export function computeStats(state: GameState): Stats {
     power: MACHINES.power.baseSupply,
     powerUse: 0,
     autoService: 0,
+    contractSlots: 0,
     yieldMult: {},
   };
 
   let conditionSum = 0;
   let machineCount = 0;
+  // Staff are folded in last: the welfare multiplier comes from buildings.
+  const staff: { def: (typeof Content.purchasables)[number]; count: number; productivity: number }[] = [];
 
   for (const def of Content.purchasables) {
     const count = owned(state, def.id);
@@ -175,6 +192,13 @@ export function computeStats(state: GameState): Stats {
       continue;
     }
 
+    if (def.category === 'employee') {
+      // Experience and welfare buildings both scale what a role delivers.
+      const level = staffLevel(state.staffXp[def.id] ?? 0);
+      staff.push({ def, count, productivity: staffProductivity(level) });
+      continue;
+    }
+
     for (const effect of def.effects) applyEffect(acc, effect, count);
   }
 
@@ -190,22 +214,36 @@ export function computeStats(state: GameState): Stats {
     for (const effect of perk.effects) applyEffect(acc, effect, level);
   }
 
+  for (const entry of staff) {
+    const scale = entry.count * entry.productivity * acc.mult.staffProductivity;
+    for (const effect of entry.def.effects) applyEffect(acc, effect, scale);
+  }
+
+  // The company focus (GDD chapter 6) is just another effect source.
+  const priority = Content.priority(state.priority);
+  for (const effect of priority?.effects ?? []) applyEffect(acc, effect, 1);
+
+  // Staff productivity bonuses from buildings apply to every employee effect
+  // that was already folded in, so they ride on the multiplier instead.
+  void COMPANY;
+
   // Company level is a gentle, always-on income bonus.
   acc.mult.sellPrice *= 1 + (state.level - 1) * BALANCE.level.incomePerLevel;
 
+  const demand = acc.powerUse * acc.mult.powerUse;
+  const factor = powerFactor(acc.power, demand);
+  const condition = machineCount > 0 ? conditionSum / machineCount : 1;
+
   const processes: Record<string, number> = {};
   for (const [recipe, rateValue] of Object.entries(acc.process)) {
-    processes[recipe] = rateValue * acc.mult.processSpeed * powerFactor(acc.power, acc.powerUse);
+    processes[recipe] = rateValue * acc.mult.processSpeed * factor;
   }
-
-  const factor = powerFactor(acc.power, acc.powerUse);
-  const condition = machineCount > 0 ? conditionSum / machineCount : 1;
 
   return {
     // Manual work needs no electricity - the hammer always swings.
     tapPower: acc.tapFlat * acc.mult.tapPower,
     teardownRate: acc.teardownFlat * acc.mult.teardownRate * factor,
-    storage: acc.storageFlat,
+    storage: acc.storageFlat * acc.mult.storage,
     queueSlots: acc.queueFlat,
     autoBuyPerMinute: acc.autoBuy * acc.mult.autoBuy,
     autoSellPerSec: acc.autoSell * acc.mult.autoSell * factor,
@@ -215,9 +253,10 @@ export function computeStats(state: GameState): Stats {
     unlocks: acc.unlocks,
     companyValue: acc.companyValue,
     quality: Math.max(0, Math.min(ECONOMY.quality.max, acc.quality)),
-    power: { supply: acc.power, demand: acc.powerUse, factor },
+    power: { supply: acc.power, demand, factor },
     condition,
-    autoService: acc.autoService,
+    autoService: acc.autoService * acc.mult.autoService,
+    contractSlots: acc.contractSlots,
     yieldMult: acc.yieldMult,
   };
 }
