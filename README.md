@@ -14,6 +14,17 @@ Umsetzung von [GDD Kapitel 1 (Vision)](docs/gdd/01-vision.md),
 [Kapitel 9 (Architektur)](docs/gdd/09-architecture.md) und
 [Kapitel 10 (Tutorial, Missionen & Spielerführung)](docs/gdd/10-missions.md).
 
+## Spielen
+
+Die App liegt auf GitHub Pages: **https://sharkyt207.github.io/IDLe/**
+
+Sie ist als **Web-App installierbar** — auf dem Handy „Zum Home-Bildschirm
+hinzufügen" (iOS: Teilen-Menü in Safari, Android: Menü in Chrome). Danach
+startet sie im Vollbild ohne Browserleiste, mit eigenem Symbol, und läuft
+**vollständig offline**: ein Service Worker legt den kompletten Build ab, der
+Spielstand liegt ohnehin lokal. Ein neuer Stand wird beim nächsten Start mit
+Verbindung automatisch übernommen.
+
 ## Loslegen
 
 ```bash
@@ -30,6 +41,8 @@ npm run dev        # http://localhost:5173 - am besten in der Mobilansicht öffn
 | `npm run simulate` | Headless-Balancinglauf (30 Min.), prüft die GDD-Zusagen |
 | `npm test` | 10 Browser-Suiten in echtem Chromium |
 | `npm run i18n` | Übersetzungsstand und Suche nach hartkodiertem Text |
+| `npm run icons` | zeichnet die App-Symbole neu (läuft automatisch vor dem Build) |
+| `npm run pwa` | prüft den Produktionsbuild: Manifest, Symbole, Offline-Start |
 | `npm run check` | typecheck + simulate + test |
 
 ## Was drin ist
@@ -153,6 +166,14 @@ Forschungen und Prestige-Boni sind reine Datenobjekte und brauchen keinen System
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 Speicherstände sind versioniert, werden beim Laden saniert und überstehen Inhalts-Updates.
+
+**Installierbar ohne Asset-Ordner.** Auch die App-Symbole sind gezeichnet: ein
+Skript rastert sie beim Build aus derselben Palette wie das Spiel und schreibt
+die PNGs direkt (`node:zlib`, kein Bildpaket). Der Service Worker entsteht nach
+dem Build, weil erst dann die gehashten Dateinamen feststehen — die installierte
+App hat damit ab dem ersten Start die vollständige Dateiliste. `npm run pwa`
+prüft beides gegen einen echten Build, einmal an der Domainwurzel und einmal
+unter `/IDLe/`, weil genau dort relative Pfade und der Worker-Scope brechen.
 
 ## Stand
 

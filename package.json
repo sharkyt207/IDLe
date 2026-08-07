@@ -2,17 +2,21 @@
   "name": "scrap-empire",
   "version": "0.1.0",
   "private": true,
-  "description": "Scrap Empire - Idle/Tycoon Prototyp (GDD Kapitel 1 & 2)",
+  "description": "Scrap Empire - Idle/Tycoon fürs Smartphone, installierbar als Web-App",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "predev": "node scripts/make-icons.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/make-sw.mjs",
+    "prebuild": "node scripts/make-icons.mjs",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
     "simulate": "node scripts/simulate.mjs",
     "test": "node tests/run.mjs",
+    "pwa": "npm run build && node scripts/check-pwa.mjs",
     "i18n": "node scripts/i18n-check.mjs",
-    "check": "npm run typecheck && npm run simulate -- 30 && npm test"
+    "icons": "node scripts/make-icons.mjs",
+    "check": "npm run typecheck && npm run simulate -- 30 && npm test && npm run pwa"
   },
   "devDependencies": {
     "typescript": "^5.9.3",

@@ -85,6 +85,8 @@ src/
   audio/         Sounddesign (GDD Kapitel 8), vollständig synthetisiert
     sound.ts       Maschinen, Oberfläche, Musikbett - ohne ein einziges Asset
 
+  main.ts        Bootreihenfolge und Registrierung des Offline-Workers
+
   render/        Zeichnen (Kamera, isometrische Modelle, Partikel)
   ui/            DOM-Oberfläche (GDD Kapitel 8)
     theme.ts       Themes und Barrierefreiheit als CSS-Variablen

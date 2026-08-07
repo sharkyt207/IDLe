@@ -26,6 +26,12 @@ import { rollDaily, rollWeekly, dayIndex, weekIndex } from './daily';
 /** How many missions the task list shows at once (GDD: "maximal drei"). */
 export const VISIBLE_TASKS = 3;
 
+/**
+ * The tutorial steps that teach the core loop: take a car apart, turn the
+ * scrap into money. Until those two are done nothing else is offered.
+ */
+const LOOP_STEPS = TUTORIAL_MISSION_IDS.slice(0, 2);
+
 export interface MissionRow {
   def: MissionDef;
   entry: MissionEntry;
@@ -149,15 +155,23 @@ function offer(game: Game): void {
   const missions = state.missions;
 
   if (tutorialActive(game)) {
-    // Exactly one open tutorial step, and nothing else until they are done.
+    // One open tutorial step at a time - five at once are a wall of text.
     const next = TUTORIAL_MISSION_IDS.find((id) => !missions.done.includes(id));
     const def = next ? Content.mission(next) : undefined;
     if (def) accept(game, def);
-    return;
-  }
-  // A skipped tutorial (debug, tests, a migrated save) must not leave its
-  // steps sitting in the task list forever.
-  if (state.tutorial.done) {
+
+    // The opening holds everything else back only while it is still teaching
+    // the loop. After that the remaining steps ride along as ordinary tasks.
+    //
+    // The stricter version soft-locked: the third step asks for a specific
+    // tool, and a player who spends their money on anything else had *no*
+    // missions at all - the browser flow test sat on "Besseres Werkzeug" for
+    // forty vehicles and five levels. A tutorial may suggest; it may not be
+    // the only thing the game is willing to say.
+    if (LOOP_STEPS.some((id) => !missions.done.includes(id))) return;
+  } else if (state.tutorial.done) {
+    // A skipped tutorial (debug, tests, a migrated save) must not leave its
+    // steps sitting in the task list forever.
     missions.active = missions.active.filter((m) => Content.mission(m.id)?.kind !== 'tutorial');
   }
 

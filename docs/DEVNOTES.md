@@ -6,6 +6,24 @@ begleitenden Entwicklernotizen"). Neueste zuerst.
 
 ---
 
+## Die Zeichenfläche folgt ihrer eigenen Box
+
+**Symptom.** Nur im Produktionsbuild: die installierte App öffnete auf einem
+leeren Hof. Die Zeichenfläche war 2×2 Pixel groß, ihre CSS-Box 390×600.
+
+**Ursache.** `resize()` liest das Layout. Ein gebündeltes Skript läuft
+vollständig, bevor der Browser überhaupt einmal umgebrochen hat — gemessen
+wurde also 0. Im Entwicklungsserver lädt derselbe Code über Dutzende
+Anfragen, und bis die Oberfläche entsteht, gibt es längst ein Layout. Deshalb
+war das nur gegen einen echten Build zu sehen; `npm run pwa` prüft jetzt genau
+das.
+
+**Fix.** Ein `ResizeObserver` auf der Zeichenfläche. Das behebt den Kaltstart
+und nebenbei alles, was ein `window`-Listener verpasst: geteilter Bildschirm,
+eingeblendete Tastatur, gedrehtes Tablet.
+
+---
+
 ## Belohnungen werden in Lieferungen gemessen, nicht in Euro
 
 **Symptom.** Nach Kapitel 10 stand der Bot nach 30 Minuten auf Level 96 statt
@@ -26,6 +44,22 @@ die eine Sprosse kauft, teleportiert den Hof.
 Startkapital. Derselbe Deckel gilt für Sachpreise, was auch einen falsch
 skalierten Datensatz abfängt — die Schrottskulptur (1,2 Mio Firmenwert) war als
 Belohnung einer Level-8-Nebenmission eingetragen.
+
+---
+
+## Ein Tutorial darf nicht das Einzige sein, was das Spiel sagt
+
+**Symptom.** Der Browser-Flow-Test spielte vierzig Fahrzeuge und fünf Level
+lang mit genau einer offenen Aufgabe: „Kaufe den Schneidbrenner".
+
+**Ursache.** Die Einführung sperrte alle anderen Missionen, bis alle fünf
+Schritte erledigt waren. Schritt drei verlangt ein bestimmtes Werkzeug — wer
+sein Geld anders ausgab, bekam gar keine Missionen mehr.
+
+**Fix.** Die Sperre gilt nur noch für die beiden Schritte, die die Kernschleife
+beibringen (zerlegen, verkaufen). Danach läuft der offene Schritt als
+gewöhnliche Aufgabe mit. Ein Tutorial darf vorschlagen; es darf nicht der
+einzige Kanal bleiben.
 
 ---
 

@@ -51,4 +51,23 @@ function boot(): void {
   }
 }
 
+/**
+ * Registers the offline worker (production builds only).
+ *
+ * It waits for `load` so the first paint never competes with the precache, and
+ * it fails quietly: a browser without service workers, or a page served over
+ * plain HTTP, still plays the game - it just does not survive a tunnel.
+ */
+function registerWorker(): void {
+  if (import.meta.env.DEV || !('serviceWorker' in navigator)) return;
+  window.addEventListener('load', () => {
+    // Relative to the document, so the same build works at a domain root and
+    // under a project path like /IDLe/.
+    navigator.serviceWorker.register(new URL('sw.js', document.baseURI).href).catch((error) => {
+      log.warn('app', 'Offline-Modus nicht verfügbar', error);
+    });
+  });
+}
+
 boot();
+registerWorker();

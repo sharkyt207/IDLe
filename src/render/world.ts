@@ -40,6 +40,8 @@ interface Drawable {
 export class WorldRenderer {
   private ctx: CanvasRenderingContext2D;
   private camera: Camera;
+  /** Keeps the backing store in step with the element's box. */
+  private observer?: ResizeObserver;
   readonly effects = new Effects();
 
   readonly map = new MapSystem();
@@ -88,6 +90,28 @@ export class WorldRenderer {
 
     this.bindInput();
     this.resize();
+
+    /**
+     * The canvas follows its own box.
+     *
+     * `resize()` reads the layout, and on a production build the whole bundle
+     * runs before the browser has laid anything out - the canvas measured 0 and
+     * the backing store stayed 2x2 pixels, so an installed app opened on an
+     * empty yard until something else triggered a resize. In dev the module
+     * graph loads over enough round-trips that layout has already happened,
+     * which is exactly why this only showed up against a real build.
+     *
+     * An observer fixes the cold start and, for free, the cases a window
+     * listener misses: split screen, the on-screen keyboard, a rotated tablet.
+     */
+    if (typeof ResizeObserver !== 'undefined') {
+      this.observer = new ResizeObserver(() => {
+        const rect = this.canvas.getBoundingClientRect();
+        if (Math.abs(rect.width - this.viewW) < 1 && Math.abs(rect.height - this.viewH) < 1) return;
+        this.resize();
+      });
+      this.observer.observe(this.canvas);
+    }
 
     game.bus.on('changed', () => this.buildings.markDirty());
   }

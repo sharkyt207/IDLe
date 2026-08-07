@@ -23,11 +23,18 @@ const root = resolve(here, '..');
 const PORT = Number(process.env.SCRAP_PORT ?? 5174);
 const BASE = `http://localhost:${PORT}/`;
 
+/**
+ * Suites that need something other than the dev server, and are therefore not
+ * part of the default run. `pwa` wants a production build behind a static
+ * server - `npm run pwa` sets that up.
+ */
+const STANDALONE = new Set(['pwa']);
+
 const only = process.argv.slice(2);
 const suites = readdirSync(here)
   .filter((f) => f.endsWith('.mjs') && f !== 'run.mjs')
   .map((f) => f.replace('.mjs', ''))
-  .filter((name) => only.length === 0 || only.includes(name))
+  .filter((name) => (only.length === 0 ? !STANDALONE.has(name) : only.includes(name)))
   .sort();
 
 if (suites.length === 0) {

@@ -45,9 +45,16 @@ Belohnungen. Genau das war der Grund für den Umbau: „Zerlege dein erstes
 Fahrzeug" existierte vorher zweimal, einmal im Tutorial-Skript und einmal als
 Erfolg.
 
-Sie erscheinen einzeln und in Reihenfolge; erst wenn alle fünf erledigt sind,
-öffnen sich Haupt-, Neben- und Zeitmissionen. Fünf Schritte auf einmal wären
-eine Textwand, kein Tutorial.
+Sie erscheinen einzeln und in Reihenfolge — fünf Schritte auf einmal wären eine
+Textwand, kein Tutorial.
+
+Zurückgehalten werden andere Missionen aber nur, solange die **Kernschleife**
+noch unterrichtet wird (zerlegen, verkaufen). Danach läuft der offene Schritt
+als gewöhnliche Aufgabe mit. Die strengere Variante konnte blockieren: Schritt
+drei verlangt ein bestimmtes Werkzeug, und der Browser-Flow-Test saß vierzig
+Fahrzeuge und fünf Level lang auf „Besseres Werkzeug", ohne dass das Spiel ihm
+sonst irgendetwas anbot. Ein Tutorial darf vorschlagen; es darf nicht der
+einzige Kanal bleiben.
 
 **Die Werkstatt ist echt.** Der Mechaniker verlangt jetzt
 `requires: { level: 3, flags: ['workshop'] }`, also schaltet Mission 4 wirklich

@@ -39,6 +39,7 @@ die ein TypeScript/Vite-Projekt braucht:
 | `UI/Components` | `src/ui/components.ts` | |
 | `Game/` | `src/game/game.ts`, `src/main.ts` | |
 | `Assets/` | — | bewusst leer: alle Grafik ist Vektor, aller Ton synthetisiert |
+| — | `public/` | nur Manifest und die beim Build **gezeichneten** App-Symbole |
 
 `Assets/` fehlt, weil es nichts zu speichern gibt. Modelle sind Zeichenanweisungen in
 `render/models.ts`, Symbole sind Emoji, Geräusche entstehen zur Laufzeit. Sobald echte Assets
@@ -179,6 +180,7 @@ npm run build       # Produktionsbuild
 npm run simulate    # 26 GDD-Prüfungen, headless
 npm test            # 10 Browser-Suiten in echtem Chromium
 npm run i18n        # Übersetzungsstand
+npm run pwa         # Produktionsbuild: Manifest, Symbole, Offline-Start
 npm run check       # typecheck + simulate + test
 ```
 
@@ -190,6 +192,28 @@ Ganze läuft.
 Ein Feature gilt als fertig, wenn es funktioniert, gespeichert und geladen wird, in der
 Oberfläche steckt, Ereignisse auslöst, Statistiken aktualisiert, keine Performanceprobleme
 verursacht und erweiterbar bleibt — jede dieser Zusagen hat oben einen Befehl, der sie prüft.
+
+### Auslieferung
+
+Der Build ist statisch und hat keinen Server hinter sich, also ist GitHub Pages
+die ganze Auslieferung: ein Push, und die installierte App aktualisiert sich
+beim nächsten Start mit Verbindung.
+
+Zwei Dinge entstehen dabei, statt gespeichert zu werden:
+
+- **App-Symbole.** `scripts/make-icons.mjs` zeichnet sie aus derselben Palette
+  wie das Spiel und schreibt die PNGs direkt über `node:zlib`. Ein Build, der
+  einen Rasterizer nachlädt, um sechs Rechtecke zu malen, hat die Prioritäten
+  falsch — und `public/icons/` bleibt aus der Versionsverwaltung heraus.
+- **Service Worker.** `scripts/make-sw.mjs` läuft *nach* Vite, weil erst dann
+  die gehashten Dateinamen feststehen. Der Cachename trägt einen Hash der
+  Dateiliste, also verfällt bei jedem Deploy genau der alte Cache.
+
+Navigationen holen zuerst das Netz und fallen auf den Cache zurück; alles
+andere ist inhaltsgehasht und wird direkt aus dem Cache bedient. `npm run pwa`
+prüft das gegen einen echten Build, einmal an der Domainwurzel und einmal unter
+`/IDLe/` — der Projektpfad ist die Stelle, an der relative Basis und
+Worker-Scope brechen.
 
 ### Telemetrie
 

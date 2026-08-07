@@ -1,0 +1,62 @@
+name: Deploy to GitHub Pages
+
+# The game is a static build with no backend, so Pages is the whole hosting
+# story: push, and the installable app updates on every home screen it is on.
+#
+# `claude/**` is here because the project currently lives on a working branch;
+# once it is merged, `main` is the one that matters and the branch entry can go.
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one that is mid-flight - a half
+# published app is worse than an old one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Icons are drawn by the build, the service worker is written after it.
+      - run: npm run build
+
+      # The build is what gets deployed, so it is also what gets checked:
+      # manifest, icons, worker scope and a cold start with no connection.
+      - run: node scripts/check-pwa.mjs
+
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

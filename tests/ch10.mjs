@@ -136,6 +136,61 @@ const tutorial = await page.evaluate(async () => {
 });
 console.log('TUTORIAL:', JSON.stringify(tutorial));
 
+// How much the opening is allowed to hold back.
+//
+// While the loop is still being taught, nothing else competes with it. Once it
+// is taught, a player who ignores the remaining steps still gets missions -
+// the stricter version soft-locked anyone who spent their money elsewhere, and
+// the browser flow test sat on "Besseres Werkzeug" for forty vehicles.
+const gating = await page.evaluate(async () => {
+  const mod = await import('/src/missions/manager.ts');
+  const { TUTORIAL_MISSION_IDS } = await import('/src/data/missions.ts');
+  const g = window.game;
+
+  const saved = {
+    owned: { ...g.state.owned },
+    done: [...g.state.missions.done],
+    active: [...g.state.missions.active],
+    level: g.state.level,
+    vehicles: g.state.progressStats.vehiclesDone,
+    sales: g.state.progressStats.sales,
+    tutorialDone: g.state.tutorial.done,
+  };
+
+  /** Rewinds to a company that has done exactly `steps` of the opening. */
+  const rewind = (steps, level) => {
+    g.state.owned = {};
+    g.state.progressStats.vehiclesDone = steps >= 1 ? 1 : 0;
+    g.state.progressStats.sales = steps >= 2 ? 1 : 0;
+    g.state.tutorial.done = false;
+    g.state.missions.done = TUTORIAL_MISSION_IDS.slice(0, steps);
+    g.state.missions.active = [];
+    g.state.level = level;
+    g.recompute();
+    mod.refreshMissions(g);
+    const open = mod.rows(g);
+    return {
+      open: open.map((r) => r.def.id),
+      kinds: [...new Set(open.map((r) => r.def.kind))],
+      tutorialStep: mod.currentTutorial(g)?.def.id ?? null,
+    };
+  };
+
+  const teaching = rewind(0, 1);
+  const taught = rewind(2, 8);
+
+  Object.assign(g.state, { owned: saved.owned, level: saved.level });
+  g.state.progressStats.vehiclesDone = saved.vehicles;
+  g.state.progressStats.sales = saved.sales;
+  g.state.tutorial.done = saved.tutorialDone;
+  g.state.missions.done = saved.done;
+  g.state.missions.active = saved.active;
+  g.recompute();
+
+  return { teaching, taught };
+});
+console.log('GATING:', JSON.stringify(gating));
+
 // The mechanic really is gated behind the workshop, not just described as such.
 const gate = await page.evaluate(async () => {
   const g = window.game;
