@@ -35,6 +35,7 @@ export class CompanyScreen implements Screen {
     grid.appendChild(stat(fmt(s.progressStats.vehiclesDone, 0), 'Fahrzeuge zerlegt'));
     grid.appendChild(stat(fmt(s.progressStats.taps, 0), 'Manuelle Tipps'));
     grid.appendChild(stat(duration(s.playtime), 'Spielzeit'));
+    grid.appendChild(stat(money(game.stats.companyValue), 'Firmenwert'));
     grid.appendChild(stat(`${fmt(game.stats.offlineHours, 0)} h`, 'Offline-Fortschritt'));
     root.appendChild(grid);
 

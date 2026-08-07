@@ -213,12 +213,18 @@ console.log('  Verschiedene Käufe ', seen.size);
 console.log('  Forschungen        ', game.state.research.done.length);
 console.log('  Reputation möglich ', game.prestigeGain());
 console.log('  Neugründungen      ', game.state.prestige.runs);
+const lots = Content.purchasables.filter((d) => d.category === 'lot' && (game.state.owned[d.id] ?? 0) > 0);
+const decor = Content.purchasables.filter((d) => d.category === 'decor' && (game.state.owned[d.id] ?? 0) > 0);
+console.log('  Grundstücke        ', lots.length, '/', Content.purchasables.filter((d) => d.category === 'lot').length);
+console.log('  Deko-Arten         ', decor.length);
+console.log('  Firmenwert         ', Math.round(game.stats.companyValue).toLocaleString('de-DE'), '€');
 
 console.log('\nGDD-Prüfungen:');
 check('Erste 10 Minuten: mindestens 5 Entscheidungen', purchasesInFirstTen >= 5, `${purchasesInFirstTen} Käufe`);
 check('Erste 30 Min ohne Stillstand > 5 Min', longestGap <= 300, `längste Pause ${fmtTime(longestGap)}`);
 check('Automatisierung erreicht', game.stats.teardownRate > 0, `${game.stats.teardownRate.toFixed(1)}/s`);
 check('Sichtbares Wachstum (>=6 Anlagen-Arten)', seen.size >= 6, `${seen.size} Arten`);
+check('Gelände wächst (mind. 1 Grundstück)', lots.length >= 1, `${lots.length} Grundstücke`);
 
 function check(label, ok, detail) {
   console.log(`  ${ok ? '✅' : '❌'} ${label} — ${detail}`);

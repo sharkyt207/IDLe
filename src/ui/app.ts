@@ -90,6 +90,11 @@ export class App {
     this.bindEvents();
     this.lastEarned = game.state.lifetimeEarned;
 
+    // Dev handle for automated playtests of the world systems.
+    if (import.meta.env.DEV) {
+      (window as unknown as Record<string, unknown>).yard = this.yard.renderer;
+    }
+
     this.select('yard');
     this.tutorial.update();
     this.loop(performance.now());

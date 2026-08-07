@@ -196,6 +196,7 @@ export class Game {
     if (!this.state.active) this.loadVehicle(vehicleId);
     else this.state.queue.push(vehicleId);
 
+    this.bus.emit('delivery', { vehicleId: def.id });
     if (!silent) {
       this.state.progressStats.purchases++;
       this.bus.emit('notice', { text: `${def.name} angeliefert`, icon: def.icon, tone: 'good' });
@@ -290,6 +291,7 @@ export class Game {
     if (!this.spendMoney(cost)) return false;
     this.state.owned[id] = owned(this.state, id) + 1;
     this.recompute();
+    if (def.category === 'lot') this.bus.emit('lotBought', { lotId: def.id });
     this.bus.emit('notice', { text: `${def.name} gekauft`, icon: def.icon, tone: 'good' });
     this.bus.emit('progress', undefined);
     return true;

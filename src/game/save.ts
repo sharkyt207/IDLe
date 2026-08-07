@@ -105,6 +105,19 @@ function sanitize(raw: Record<string, unknown>): GameState {
     bestRun: Math.max(0, num(src.prestige?.bestRun, 0)),
   };
 
+  // World: keep only placements whose keys still exist as content.
+  const placements: Record<string, string> = {};
+  for (const [key, slot] of Object.entries(src.world?.placements ?? {})) {
+    const defId = key.split('#')[0];
+    if (Content.purchasable(defId) && typeof slot === 'string') placements[key] = slot;
+  }
+  state.world = {
+    placements,
+    dayTime: Math.max(0, num(src.world?.dayTime, 300)),
+    weather: typeof src.world?.weather === 'string' ? src.world.weather : 'clear',
+    weatherLeft: Math.max(0, num(src.world?.weatherLeft, 120)),
+  };
+
   state.tutorial = {
     step: Math.max(0, Math.floor(num(src.tutorial?.step, 0))),
     done: bool(src.tutorial?.done, false),

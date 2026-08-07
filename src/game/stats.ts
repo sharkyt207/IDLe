@@ -19,6 +19,8 @@ export interface Stats {
   mult: Record<MultiplierTarget, number>;
   /** Unlock flags granted by buildings/research. */
   unlocks: Set<string>;
+  /** Cosmetic prestige - decoration and plots, never production. */
+  companyValue: number;
 }
 
 const NEUTRAL: Record<MultiplierTarget, number> = {
@@ -42,6 +44,7 @@ interface Accumulator {
   process: Record<string, number>;
   mult: Record<MultiplierTarget, number>;
   unlocks: Set<string>;
+  companyValue: number;
 }
 
 function applyEffect(acc: Accumulator, effect: Effect, count: number): void {
@@ -73,6 +76,9 @@ function applyEffect(acc: Accumulator, effect: Effect, count: number): void {
     case 'multiplier':
       acc.mult[effect.target] *= Math.pow(effect.factor, count);
       break;
+    case 'companyValue':
+      acc.companyValue += effect.amount * count;
+      break;
     case 'unlock':
       if (count > 0) acc.unlocks.add(effect.id);
       break;
@@ -96,6 +102,7 @@ export function computeStats(state: GameState): Stats {
     process: {},
     mult: { ...NEUTRAL },
     unlocks: new Set<string>(),
+    companyValue: 0,
   };
 
   for (const def of Content.purchasables) {
@@ -135,6 +142,7 @@ export function computeStats(state: GameState): Stats {
     processes,
     mult: acc.mult,
     unlocks: acc.unlocks,
+    companyValue: acc.companyValue,
   };
 }
 

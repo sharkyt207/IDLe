@@ -12,7 +12,9 @@ const TABS: { id: PurchaseCategory; label: string; icon: string }[] = [
   { id: 'machine', label: 'Maschinen', icon: '🤖' },
   { id: 'employee', label: 'Team', icon: '👷' },
   { id: 'building', label: 'Gelände', icon: '🏢' },
+  { id: 'lot', label: 'Grundstück', icon: '🗺️' },
   { id: 'tool', label: 'Werkzeug', icon: '🔨' },
+  { id: 'decor', label: 'Deko', icon: '🌳' },
 ];
 
 /** Ausbau: everything the player can buy, grouped by category. */
@@ -74,6 +76,7 @@ export class BuildScreen implements Screen {
   private isVisible(id: string): boolean {
     const def = Content.purchasable(id);
     if (!def) return false;
+    if (def.category === 'lot' || def.category === 'decor') return true;
     if (owned(this.game.state, id) > 0) return true;
     if (meetsRequirement(this.game.state, this.game.stats, def.requires)) return true;
     // Locked: show if it is the next step of its group, hide deeper tiers.

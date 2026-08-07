@@ -25,7 +25,15 @@ src/
     game.ts        Orchestrator: Aktionen + fester Simulationsschritt
     systems/       teardown · logistics · market · processing · offline
 
-  render/        Canvas-Ansicht des Hofs (Kamera, Fahrzeug-Silhouetten, Partikel)
+  world/         Spielwelt (GDD Kapitel 3), unabhängig austauschbare Module
+    iso.ts         Isometrische Projektion (64:36 ≈ 29,4°)
+    map.ts         Gelände, Zonen, Straßen, Bauflächen, Grundstücksgrenzen
+    buildings.ts   Platzierung und Ausbaustufen der Anlagen
+    traffic.ts     LKW, Straßenverkehr, Gabelstapler - fahren echte Wege
+    logistics.ts   sichtbarer Materialfluss auf den Förderstrecken
+    environment.ts Tag/Nacht-Zyklus, Wetter, Atmosphäre
+
+  render/        Zeichnen (Kamera, isometrische Modelle, Partikel)
   ui/            DOM-Oberfläche (Shell, Screens, Tutorial, Modals)
 ```
 
@@ -63,6 +71,9 @@ im passenden System.
 | Neue Maschine / Mitarbeiter / Gebäude | `purchasables.ts` | keiner |
 | Neue Forschung | `research.ts` | keiner |
 | Neuer Prestige-Bonus | `research.ts` (`PRESTIGE_PERKS`) | keiner |
+| Neues Grundstück | `lots.ts` (Geometrie) + `purchasables.ts` (Preis) | keiner |
+| Neue Dekoration | `purchasables.ts` + Modell in `models.ts` | keiner |
+| Neues Gebäudemodell | `models.ts` (Tabelleneintrag) | keiner |
 | Neue **Art** von Wirkung | `types.ts` + `stats.ts` + System | ja, klein |
 
 Freischaltungen laufen über `requires` (Level, Forschung, Besitz, Flags) und werden auf jeder
@@ -92,11 +103,27 @@ Rezepte, Forschungen) und meldet Fehler in der Konsole.
 
 Dadurch überlebt ein Spielstand Inhalts-Updates, auch wenn Inhalte entfernt werden.
 
+## Die Spielwelt
+
+Die Karte ist ein Kachelraster; die Grundstücke sind Rechtecke darin. Alles Weitere wird
+abgeleitet und nur neu berechnet, wenn sich der Besitz ändert: Zonen, Bauflächen, Straßen,
+Kartengrenzen. Ein neues Grundstück ist damit ein Rechteck in `lots.ts` plus ein Kaufobjekt.
+
+Anlagen stehen auf Bauflächen. Pro Kaufobjekt existiert **genau ein** Bauwerk, dessen
+Ausbaustufe mit der Stückzahl wächst - der zehnte Kran wertet den Hof sichtbar auf, statt ihn
+mit zehn Symbolen zuzustellen. Die Platzierung erfolgt automatisch in eine passende Zone und
+kann vom Spieler per Antippen verschoben werden.
+
+Gezeichnet wird in einem Painter's-Algorithm-Durchgang, sortiert nach `tx + ty`.
+
 ## Leistung auf Mittelklasse-Geräten
 
-- Keine Laufzeit-Abhängigkeiten; Build ≈ 26 kB gzip.
+- Keine Laufzeit-Abhängigkeiten; Build ≈ 37 kB gzip.
 - Canvas-Zeichnung aus Vektorformen, kein Asset-Laden; DPR auf 2 begrenzt.
-- Partikel und schwebende Texte sind gedeckelt (160 / 24).
+- Nur sichtbare Kacheln, Anlagen, Fahrzeuge und Pakete werden gezeichnet.
+- Animationen und Spawns pausieren, sobald der Hof nicht der aktive Screen ist.
+- Harte Obergrenzen: 5 Liefer-LKW, 4 Straßenfahrzeuge, 4 Gabelstapler, 40 Materialpakete,
+  160 Partikel, 24 schwebende Texte, 90 Bäume pro Bild.
 - Die Oberfläche baut nur den sichtbaren Screen neu, höchstens viermal pro Sekunde, und stellt
   die Scrollposition wieder her.
 

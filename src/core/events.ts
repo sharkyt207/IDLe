@@ -14,6 +14,10 @@ export interface GameEvents {
   levelUp: { level: number };
   /** Tutorial should re-evaluate its current step. */
   progress: void;
+  /** A delivery was ordered - the map sends a truck for it. */
+  delivery: { vehicleId: string };
+  /** A plot was bought; the map grows and the camera visits it. */
+  lotBought: { lotId: string };
 }
 
 type Handler<K extends keyof GameEvents> = (payload: GameEvents[K]) => void;

@@ -64,6 +64,17 @@ export interface GameState {
     bestRun: number;
   };
 
+  /** Map state (GDD chapter 3). Geometry itself is derived, not stored. */
+  world: {
+    /** Instance key → slot id. Only player overrides and auto-assignments. */
+    placements: Record<string, string>;
+    /** Seconds into the current 15-minute day. */
+    dayTime: number;
+    weather: string;
+    /** Seconds left of the current weather. */
+    weatherLeft: number;
+  };
+
   tutorial: { step: number; done: boolean; choiceOffered: boolean };
 
   progressStats: {
@@ -112,6 +123,8 @@ export function createInitialState(carryPrestige?: GameState['prestige']): GameS
     autoSellLocked: {},
 
     prestige: carryPrestige ?? { reputation: 0, perks: {}, runs: 0, bestRun: 0 },
+
+    world: { placements: {}, dayTime: 300, weather: 'clear', weatherLeft: 120 },
 
     tutorial: { step: 0, done: false, choiceOffered: false },
 

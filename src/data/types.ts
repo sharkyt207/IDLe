@@ -11,7 +11,7 @@
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 
 /** Yard categories - drive which screen a purchasable shows up on. */
-export type PurchaseCategory = 'tool' | 'machine' | 'employee' | 'building';
+export type PurchaseCategory = 'tool' | 'machine' | 'employee' | 'building' | 'lot' | 'decor';
 
 /** Visual archetype used by the canvas renderer to draw a delivery. */
 export type VehicleShape = 'bike' | 'car' | 'van' | 'truck' | 'container' | 'machine';
@@ -45,6 +45,8 @@ export type Effect =
   | { kind: 'offlineHours'; amount: number }
   /** Multiplier on a named stat, e.g. 'sellPrice', 'teardownRate', 'tapPower'. */
   | { kind: 'multiplier'; target: MultiplierTarget; factor: number }
+  /** Cosmetic prestige. Raises the company value, never the production. */
+  | { kind: 'companyValue'; amount: number }
   /** Unlocks content that is otherwise gated (vehicles, recipes, purchasables). */
   | { kind: 'unlock'; id: string };
 
@@ -151,9 +153,23 @@ export interface PurchasableDef {
   requires?: Requirement;
   /** Effects granted *per owned copy*. */
   effects: Effect[];
-  /** Draw this on the yard once owned (machines/buildings). */
-  yardIcon?: boolean;
+  /**
+   * Presence on the map. `model` selects the isometric shape the renderer
+   * draws; `stageAt` lists the owned-counts at which the structure visibly
+   * upgrades (GDD: Schuppen → renoviert → Halle → Hightech → futuristisch).
+   */
+  building?: {
+    model: string;
+    /** Footprint in tiles. Defaults to 2×2. */
+    size?: number;
+    stageAt?: number[];
+    /** Node in the visual material flow, e.g. 'sort' | 'melt' | 'ship'. */
+    flow?: FlowRole;
+  };
 }
+
+/** Where a structure sits in the visible material chain. */
+export type FlowRole = 'teardown' | 'sort' | 'store' | 'melt' | 'produce' | 'ship';
 
 // ---------------------------------------------------------------------------
 // Research
