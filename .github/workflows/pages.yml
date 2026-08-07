@@ -41,6 +41,8 @@ jobs:
 
       # The build is what gets deployed, so it is also what gets checked:
       # manifest, icons, worker scope and a cold start with no connection.
+      # That needs a real browser, which the npm package does not ship.
+      - run: npx playwright install --with-deps chromium
       - run: node scripts/check-pwa.mjs
 
       - uses: actions/configure-pages@v5
