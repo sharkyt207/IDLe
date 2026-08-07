@@ -60,6 +60,13 @@ function sanitize(raw: Record<string, unknown>): GameState {
     }
   }
 
+  state.condition = {};
+  for (const [id, value] of Object.entries(src.condition ?? {})) {
+    if (Content.purchasable(id) && typeof value === 'number' && Number.isFinite(value)) {
+      state.condition[id] = Math.max(0, Math.min(1, value));
+    }
+  }
+
   // Quality only makes sense for material that is actually there.
   state.quality = {};
   for (const [id, value] of Object.entries(src.quality ?? {})) {

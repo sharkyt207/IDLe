@@ -53,8 +53,11 @@ function harvestPart(game: Game, vehicleId: string, partId: string): void {
   const part = vehicle?.parts.find((p) => p.id === partId);
   if (!part) return;
 
+  // Separators raise what a part gives up (GDD chapter 5).
+  const global = game.stats.yieldMult['*'] ?? 1;
   for (const y of part.yields) {
-    const amount = game.rollYield(y.min, y.max);
+    const bonus = global * (game.stats.yieldMult[y.material] ?? 1);
+    const amount = Math.round(game.rollYield(y.min, y.max) * bonus);
     if (amount > 0) game.addMaterial(y.material, amount);
   }
 

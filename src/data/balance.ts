@@ -29,6 +29,8 @@ export const BALANCE = {
     efficiency: 0.7,
     /** Max simulation chunks used to fold offline time (keeps load fast). */
     maxChunks: 400,
+    /** Hard ceiling on offline production (GDD chapter 5). */
+    maxHours: 12,
   },
 
   /** Levelling curve: xpForLevel(n) = base * growth^(n-1). */

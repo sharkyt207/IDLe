@@ -797,8 +797,10 @@ export class WorldRenderer {
 }
 
 function drawRoadVehicle(ctx: CanvasRenderingContext2D, v: RoadVehicle, pos: Point): void {
-  const w = v.kind === 'forklift' ? 9 : v.kind === 'delivery' ? 20 : 14;
-  const h = v.kind === 'forklift' ? 7 : 9;
+  const w = v.kind === 'forklift' ? 9 : v.kind === 'robot' ? 8 : v.kind === 'delivery' ? 20 : 14;
+  const h = v.kind === 'forklift' ? 7 : v.kind === 'robot' ? 6 : 9;
+  // A drone floats above the yard rather than driving through it.
+  if (v.kind === 'robot') pos = { x: pos.x, y: pos.y - 16 };
 
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.25)';

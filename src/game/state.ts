@@ -43,8 +43,10 @@ export interface GameState {
   storage: Record<string, number>;
   /** material id -> weighted average quality of that pile, 0…1. */
   quality: Record<string, number>;
-  /** purchasable id -> owned count. */
+  /** purchasable id -> owned count (machines: level). */
   owned: Record<string, number>;
+  /** machine id -> condition 0…1. Missing means "as good as new". */
+  condition: Record<string, number>;
 
   research: { done: string[]; active: ResearchProgress | null };
 
@@ -161,6 +163,7 @@ export function createInitialState(carryPrestige?: GameState['prestige']): GameS
     storage: {},
     quality: {},
     owned: {},
+    condition: {},
 
     research: { done: [], active: null },
 

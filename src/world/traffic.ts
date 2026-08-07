@@ -5,7 +5,7 @@ import { MAP_TILES, tileToWorld, type Point } from './iso';
 import type { MapSystem } from './map';
 import type { Structure } from './buildings';
 
-export type TrafficKind = 'delivery' | 'street' | 'forklift';
+export type TrafficKind = 'delivery' | 'street' | 'forklift' | 'robot';
 
 export interface RoadVehicle {
   kind: TrafficKind;
@@ -23,7 +23,7 @@ export interface RoadVehicle {
   done: boolean;
 }
 
-const SPEEDS = { delivery: 46, street: 90, forklift: 30 };
+const SPEEDS = { delivery: 46, street: 90, forklift: 30, robot: 22 };
 
 /**
  * Vehicle system: trucks and forklifts actually drive along the roads
@@ -44,6 +44,8 @@ export class TrafficSystem {
   private static readonly MAX_DELIVERY = 5;
   private static readonly MAX_STREET = 4;
   private static readonly MAX_FORKLIFT = 4;
+  private static readonly MAX_ROBOT = 3;
+  private robotTimer = 5;
 
   constructor(private game: Game) {
     game.bus.on('changed', () => undefined);
@@ -75,6 +77,7 @@ export class TrafficSystem {
     this.spawnDeliveries(map);
     this.spawnStreetTraffic(dt);
     this.spawnForklifts(dt, structures);
+    this.spawnRobots(dt, structures);
   }
 
   private count(kind: TrafficKind): number {
@@ -149,6 +152,37 @@ export class TrafficSystem {
       cargo: '📦',
       wait: 0,
       speed: SPEEDS.forklift,
+    });
+  }
+
+  /**
+   * Robots patrol between the machines they belong to (GDD chapter 5:
+   * "Diese Roboter bewegen sich sichtbar über die Fabrik").
+   */
+  private spawnRobots(dt: number, structures: Structure[]): void {
+    this.robotTimer -= dt;
+    if (this.robotTimer > 0) return;
+    this.robotTimer = 3 + Math.random() * 5;
+    if (this.count('robot') >= TrafficSystem.MAX_ROBOT) return;
+
+    const owned = ['sort_robot', 'weld_robot', 'inspection_drone'].filter(
+      (id) => (this.game.state.owned[id] ?? 0) > 0,
+    );
+    if (owned.length === 0) return;
+
+    const stations = structures.filter((s) => s.flow === 'teardown' || s.flow === 'sort');
+    if (stations.length < 2) return;
+    const from = stations[Math.floor(Math.random() * stations.length)];
+    const to = stations[Math.floor(Math.random() * stations.length)];
+    const kind = owned[Math.floor(Math.random() * owned.length)];
+
+    this.push({
+      kind: 'robot',
+      path: [tileToWorld(from.tx + 1, from.ty + 1), tileToWorld(to.tx + 1, to.ty + 1)],
+      color: kind === 'inspection_drone' ? '#8fd8e6' : '#b0b8c4',
+      cargo: kind === 'inspection_drone' ? '🛸' : '🤖',
+      wait: 0,
+      speed: SPEEDS.robot,
     });
   }
 

@@ -5,8 +5,9 @@ Schritt ein automatisiertes Recycling-Imperium.
 
 Umsetzung von [GDD Kapitel 1 (Vision)](docs/gdd/01-vision.md),
 [Kapitel 2 (Core Gameplay)](docs/gdd/02-core-gameplay.md),
-[Kapitel 3 (Spielwelt)](docs/gdd/03-world.md) und
-[Kapitel 4 (Wirtschaft)](docs/gdd/04-economy.md).
+[Kapitel 3 (Spielwelt)](docs/gdd/03-world.md),
+[Kapitel 4 (Wirtschaft)](docs/gdd/04-economy.md) und
+[Kapitel 5 (Maschinen)](docs/gdd/05-machines.md).
 
 ## Loslegen
 
@@ -31,8 +32,11 @@ und verkaufen → Gewinn reinvestieren → Gelände erweitern → neu gründen (
 **Tutorial** in fünf Schritten, in unter zwei Minuten spielbar, inklusive der im GDD
 festgelegten ersten Investitionsentscheidung (Hammer / Lager / Magnetkran) — ohne falsche Wahl.
 
-**Automatisierungsleiter** vom Handhammer über Mechaniker, Magnetkran, Förderband, Greifarm,
-Sortiermaschine und Roboter bis zur KI-Zerlegelinie. Jede Stufe nimmt dem Spieler Arbeit ab.
+**Automatisierungsleiter** vom Handhammer über Magnetkran, Hydraulikschere, Separatoren,
+Förderband und Greifarm bis zu Robotern und der KI-Zerlegelinie. Jede Maschine hat **10
+Ausbaustufen** (bis +150 %, ab Stufe 5 Qualitätsbonus, auf Stufe 10 Meisterstufe), zieht **Strom**
+und **verschleißt** — beides drosselt, stoppt aber nie. Parallele **Produktionslinien**
+multiplizieren den Durchsatz: die eigentliche Idle-Kurve.
 
 **Produktionsketten** — Schmelzofen, Drahtzieherei, Gummimühle, Plattenpresse und
 Platinenfertigung veredeln Rohstoffe zu deutlich wertvolleren Produkten.
@@ -59,7 +63,7 @@ Die Kamera bleibt jederzeit unter Kontrolle des Spielers.
 ## Technik
 
 TypeScript + Vite, **keine Laufzeit-Abhängigkeiten**. Oberfläche als DOM, die Spielwelt als
-isometrisches Canvas aus Vektorformen — dadurch ≈ 46 kB gzip und flüssiger Betrieb auf
+isometrisches Canvas aus Vektorformen — dadurch ≈ 50 kB gzip und flüssiger Betrieb auf
 Mittelklasse-Geräten. Gezeichnet wird nur, was im Bild ist; Animationen pausieren, sobald der
 Hof nicht der aktive Screen ist.
 
@@ -71,7 +75,7 @@ Speicherstände sind versioniert, werden beim Laden saniert und überstehen Inha
 
 ## Stand
 
-Spielbarer Prototyp. Die Kapitel 1 bis 4 des GDD sind umgesetzt; Kapitel 5 ff. sind noch offen.
+Spielbarer Prototyp. Die Kapitel 1 bis 5 des GDD sind umgesetzt; Kapitel 6 ff. sind noch offen.
 
 Bewusst noch nicht enthalten: **Ton**. Das GDD nennt Metallgeräusche als Feedback — der Prototyp
 liefert stattdessen Partikel, schwebende Beträge, Fortschrittsbalken und optionale Vibration.

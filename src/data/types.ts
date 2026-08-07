@@ -11,7 +11,15 @@
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
 
 /** Yard categories - drive which screen a purchasable shows up on. */
-export type PurchaseCategory = 'tool' | 'machine' | 'employee' | 'building' | 'lot' | 'decor';
+export type PurchaseCategory =
+  | 'tool'
+  | 'machine'
+  | 'employee'
+  | 'building'
+  | 'lot'
+  | 'decor'
+  | 'line'
+  | 'power';
 
 /** Visual archetype used by the canvas renderer to draw a delivery. */
 export type VehicleShape = 'bike' | 'car' | 'van' | 'truck' | 'container' | 'machine';
@@ -49,6 +57,18 @@ export type Effect =
   | { kind: 'companyValue'; amount: number }
   /** Raises the average material quality the yard produces (0…1, additive). */
   | { kind: 'quality'; amount: number }
+  /** Electricity supplied to the yard, in kW. */
+  | { kind: 'power'; amount: number }
+  /** Electricity the machine draws, in kW. */
+  | { kind: 'powerUse'; amount: number }
+  /** Condition restored per second without the player lifting a finger. */
+  | { kind: 'autoService'; amount: number }
+  /**
+   * Multiplies what a dismantled part yields. Without `material` it lifts
+   * every yield (Magnetseparator); with one it targets a single material
+   * (Wirbelstromseparator, Batteriestation).
+   */
+  | { kind: 'yield'; material?: string; factor: number }
   /** Unlocks content that is otherwise gated (vehicles, recipes, purchasables). */
   | { kind: 'unlock'; id: string };
 
@@ -59,7 +79,9 @@ export type MultiplierTarget =
   | 'buyPrice'
   | 'processSpeed'
   | 'xpGain'
-  | 'rareFind';
+  | 'rareFind'
+  | 'autoSell'
+  | 'autoBuy';
 
 /** Requirement gate. All listed conditions must hold. */
 export interface Requirement {
@@ -168,7 +190,11 @@ export interface PurchasableDef {
   /** Maximum copies/levels. */
   maxCount: number;
   requires?: Requirement;
-  /** Effects granted *per owned copy*. */
+  /**
+   * Effects granted per owned copy. For `machine` entries `maxCount` is the
+   * **level cap** and effects scale by the level multiplier instead, so a
+   * machine is upgraded rather than duplicated (GDD chapter 5).
+   */
   effects: Effect[];
   /**
    * Presence on the map. `model` selects the isometric shape the renderer

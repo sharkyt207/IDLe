@@ -84,6 +84,7 @@ export const MODELS: Record<string, ModelSpec> = {
   steel_mill: { height: [3.2], color: ['#7a5a48'], detail: 'chimney', lit: true },
   station: { height: [1.8], color: ['#6a6258'], detail: 'rails', lit: true },
   crane_port: { height: [2.2], color: ['#4a6a80'], detail: 'gantry', lit: true },
+  antenna_tower: { height: [3.2, 3.6, 4, 4.4, 4.8], color: ['#c8d2dc'], detail: 'antenna', lit: true },
 
   // --- fixtures -----------------------------------------------------------
   scale: { w: 2, d: 2, height: [0.18], color: ['#5a5a5a'], detail: 'scale', flat: true },

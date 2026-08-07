@@ -8,6 +8,7 @@ import { runLogistics } from './systems/logistics';
 import { runProcessing } from './systems/processing';
 import { runAutoSell, sellUnits } from './systems/market';
 import { applyTeardownWork } from './systems/teardown';
+import { runMaintenance } from './systems/maintenance';
 import { addToStorage } from '../economy/inventory';
 import { drift, isDisposal, unitPrice } from '../economy/market';
 import { addToCollection, rollFind } from '../economy/collection';
@@ -32,6 +33,9 @@ export class Game {
   autoSellCredit = 0;
 
   private lastFullNotice = 0;
+  /** Wear changes stats constantly; rebuild at most a few times a second. */
+  private statsDirty = false;
+  private statsTimer = 0;
 
   constructor(state?: GameState) {
     if (state) {
@@ -53,7 +57,13 @@ export class Game {
   /** Recomputes stats after any inventory/research/perk change. */
   recompute(): void {
     this.stats = computeStats(this.state);
+    this.statsDirty = false;
     this.bus.emit('changed', undefined);
+  }
+
+  /** Flags a cheap stat change (wear) for the next throttled rebuild. */
+  markStatsDirty(): void {
+    this.statsDirty = true;
   }
 
   /**
@@ -436,6 +446,15 @@ export class Game {
     runProcessing(this, dt, efficiency);
     runAutoSell(this, dt, efficiency);
     tickEconomy(this, dt, efficiency);
+
+    const working = !!this.state.active || this.state.queue.length > 0;
+    runMaintenance(this, dt, working, efficiency);
+    this.statsTimer += dt;
+    if (this.statsDirty && this.statsTimer >= 0.5) {
+      this.statsTimer = 0;
+      this.stats = computeStats(this.state);
+      this.statsDirty = false;
+    }
   }
 
   /** Random yield roll for one part. Exposed for the teardown system. */

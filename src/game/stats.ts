@@ -1,5 +1,6 @@
 import { BALANCE } from '../data/balance';
 import { ECONOMY } from '../data/economy';
+import { MACHINES, conditionFactor, levelMultiplier, powerFactor } from '../data/machines';
 import { Content } from '../data';
 import type { Effect, MultiplierTarget, Requirement } from '../data/types';
 import type { GameState } from './state';
@@ -24,6 +25,14 @@ export interface Stats {
   companyValue: number;
   /** Average material quality the yard produces, 0…1. */
   quality: number;
+  /** Electricity supplied and drawn, in kW. */
+  power: { supply: number; demand: number; factor: number };
+  /** Average condition of all owned machines, 0…1. */
+  condition: number;
+  /** Condition points restored per second by automatic maintenance. */
+  autoService: number;
+  /** Yield multipliers: '*' applies to everything, plus per-material entries. */
+  yieldMult: Record<string, number>;
 }
 
 const NEUTRAL: Record<MultiplierTarget, number> = {
@@ -34,6 +43,8 @@ const NEUTRAL: Record<MultiplierTarget, number> = {
   processSpeed: 1,
   xpGain: 1,
   rareFind: 1,
+  autoSell: 1,
+  autoBuy: 1,
 };
 
 interface Accumulator {
@@ -49,6 +60,10 @@ interface Accumulator {
   unlocks: Set<string>;
   companyValue: number;
   quality: number;
+  power: number;
+  powerUse: number;
+  autoService: number;
+  yieldMult: Record<string, number>;
 }
 
 function applyEffect(acc: Accumulator, effect: Effect, count: number): void {
@@ -86,6 +101,20 @@ function applyEffect(acc: Accumulator, effect: Effect, count: number): void {
     case 'quality':
       acc.quality += effect.amount * count;
       break;
+    case 'power':
+      acc.power += effect.amount * count;
+      break;
+    case 'powerUse':
+      acc.powerUse += effect.amount * count;
+      break;
+    case 'autoService':
+      acc.autoService += effect.amount * count;
+      break;
+    case 'yield': {
+      const key = effect.material ?? '*';
+      acc.yieldMult[key] = (acc.yieldMult[key] ?? 1) * Math.pow(effect.factor, count);
+      break;
+    }
     case 'unlock':
       if (count > 0) acc.unlocks.add(effect.id);
       break;
@@ -111,11 +140,41 @@ export function computeStats(state: GameState): Stats {
     unlocks: new Set<string>(),
     companyValue: 0,
     quality: ECONOMY.quality.base,
+    power: MACHINES.power.baseSupply,
+    powerUse: 0,
+    autoService: 0,
+    yieldMult: {},
   };
+
+  let conditionSum = 0;
+  let machineCount = 0;
 
   for (const def of Content.purchasables) {
     const count = owned(state, def.id);
     if (count <= 0) continue;
+
+    if (def.category === 'machine') {
+      // A machine is levelled, not duplicated: output follows the level table
+      // and is scaled by how well the machine has been maintained.
+      const level = Math.min(count, MACHINES.maxLevel);
+      const condition = state.condition[def.id] ?? 1;
+      const scale = levelMultiplier(level) * conditionFactor(condition);
+      conditionSum += condition;
+      machineCount++;
+
+      for (const effect of def.effects) {
+        // Power draw is not reduced by wear - a worn machine still eats power.
+        const factor =
+          effect.kind === 'powerUse'
+            ? levelMultiplier(level) * (level >= MACHINES.master.level ? MACHINES.master.powerFactor : 1)
+            : scale;
+        applyEffect(acc, effect, factor);
+      }
+      if (level >= MACHINES.qualityFromLevel) acc.quality += MACHINES.qualityPerMachine;
+      if (level >= MACHINES.master.level) acc.mult.rareFind *= MACHINES.master.rareFind;
+      continue;
+    }
+
     for (const effect of def.effects) applyEffect(acc, effect, count);
   }
 
@@ -136,22 +195,30 @@ export function computeStats(state: GameState): Stats {
 
   const processes: Record<string, number> = {};
   for (const [recipe, rateValue] of Object.entries(acc.process)) {
-    processes[recipe] = rateValue * acc.mult.processSpeed;
+    processes[recipe] = rateValue * acc.mult.processSpeed * powerFactor(acc.power, acc.powerUse);
   }
 
+  const factor = powerFactor(acc.power, acc.powerUse);
+  const condition = machineCount > 0 ? conditionSum / machineCount : 1;
+
   return {
+    // Manual work needs no electricity - the hammer always swings.
     tapPower: acc.tapFlat * acc.mult.tapPower,
-    teardownRate: acc.teardownFlat * acc.mult.teardownRate,
+    teardownRate: acc.teardownFlat * acc.mult.teardownRate * factor,
     storage: acc.storageFlat,
     queueSlots: acc.queueFlat,
-    autoBuyPerMinute: acc.autoBuy,
-    autoSellPerSec: acc.autoSell,
-    offlineHours: acc.offlineHours,
+    autoBuyPerMinute: acc.autoBuy * acc.mult.autoBuy,
+    autoSellPerSec: acc.autoSell * acc.mult.autoSell * factor,
+    offlineHours: Math.min(BALANCE.offline.maxHours, acc.offlineHours),
     processes,
     mult: acc.mult,
     unlocks: acc.unlocks,
     companyValue: acc.companyValue,
     quality: Math.max(0, Math.min(ECONOMY.quality.max, acc.quality)),
+    power: { supply: acc.power, demand: acc.powerUse, factor },
+    condition,
+    autoService: acc.autoService,
+    yieldMult: acc.yieldMult,
   };
 }
 

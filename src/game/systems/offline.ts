@@ -8,6 +8,8 @@ export interface OfflineReport {
   awaySeconds: number;
   capped: boolean;
   moneyGained: number;
+  /** Grid factor while away - shown in the return report. */
+  powerFactor: number;
   vehiclesDone: number;
   materialsGained: number;
 }
@@ -22,7 +24,8 @@ export interface OfflineReport {
 export function simulateOffline(game: Game, awaySeconds: number): OfflineReport | null {
   if (awaySeconds < BALANCE.offline.minSeconds) return null;
 
-  const limit = game.stats.offlineHours * 3600;
+  // GDD chapter 5: at most twelve hours of offline production.
+  const limit = Math.min(BALANCE.offline.maxHours, game.stats.offlineHours) * 3600;
   const seconds = Math.min(awaySeconds, limit);
   if (seconds <= 0) return null;
 
@@ -41,6 +44,7 @@ export function simulateOffline(game: Game, awaySeconds: number): OfflineReport 
     awaySeconds,
     capped: awaySeconds > limit,
     moneyGained: game.state.lifetimeEarned - moneyBefore,
+    powerFactor: game.stats.power.factor,
     vehiclesDone: game.state.progressStats.vehiclesDone - vehiclesBefore,
     materialsGained: game.state.progressStats.partsRemoved - partsBefore,
   };

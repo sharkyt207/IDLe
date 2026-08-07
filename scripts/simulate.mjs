@@ -30,9 +30,8 @@ await build({
   },
 });
 
-const { Game, Content, nextCost, acceptOffer, deliver, canAccept, companyValue } = await import(
-  resolve(outDir, 'sim.mjs'),
-);
+const { Game, Content, nextCost, acceptOffer, deliver, canAccept, companyValue, serviceAll, serviceCost, machineList } =
+  await import(resolve(outDir, 'sim.mjs'));
 
 const minutes = Number(process.argv[2] ?? 30);
 const TICK = 0.1;
@@ -86,8 +85,12 @@ function invest() {
       .filter((def) => def.maxCount === 1)
       .sort((a, b) => a.baseCost - b.baseCost)[0];
 
+    // An underpowered yard throttles every machine - fix the grid first.
+    const underPowered = game.stats.power.factor < 1;
+
     const pick =
       unlockBuilding ||
+      (underPowered && byGroup('Energie')) ||
       (starving && byGroup('Logistik')) ||
       (backingUp && (byGroup('Sortierung') || byGroup('Lager'))) ||
       byGroup('Zerlegen') ||
@@ -179,6 +182,16 @@ function trade() {
   }
 }
 
+/** Keeps the machines serviced once wear starts to bite. */
+let services = 0;
+function maintain() {
+  if (game.stats.condition >= 0.75) return;
+  const cost = serviceCost(game);
+  if (cost > 0 && game.state.money > cost * 3) {
+    if (serviceAll(game)) services++;
+  }
+}
+
 /** Starts whatever research is affordable - it is always a permanent gain. */
 function research() {
   if (game.state.research.active) return;
@@ -218,6 +231,7 @@ for (let step = 0; step < totalSteps; step++) {
     chooseDelivery();
     research();
     trade();
+    maintain();
     invest();
     maybePrestige();
     if (!game.state.active && game.state.queue.length === 0) {
@@ -263,6 +277,14 @@ console.log('  Verträge erfüllt   ', contractsDone);
 console.log('  Fundstücke         ', Object.values(game.state.collection).reduce((a, b) => a + b, 0));
 const quality = ['Schlecht', 'Normal', 'Gut', 'Hochwertig', 'Rein'][Math.min(4, Math.floor(game.stats.quality * 5))];
 console.log('  Materialqualität   ', quality);
+const machines = machineList(game);
+console.log('  Maschinen          ', machines.length, '· Stufen gesamt', machines.reduce((a, m) => a + m.level, 0));
+console.log('  Höchste Stufe      ', machines.reduce((a, m) => Math.max(a, m.level), 0), '/ 10');
+console.log('  Strom              ', Math.round(game.stats.power.supply), '/', Math.round(game.stats.power.demand), 'kW',
+  '(' + Math.round(game.stats.power.factor * 100) + ' %)');
+console.log('  Anlagenzustand     ', Math.round(game.stats.condition * 100), '% · Wartungen', services);
+const lines = Content.purchasables.filter((d) => d.category === 'line').reduce((a, d) => a + (game.state.owned[d.id] ?? 0), 0);
+console.log('  Produktionslinien  ', lines);
 
 console.log('\nGDD-Prüfungen:');
 check('Erste 10 Minuten: mindestens 5 Entscheidungen', purchasesInFirstTen >= 5, `${purchasesInFirstTen} Käufe`);
@@ -271,6 +293,8 @@ check('Automatisierung erreicht', game.stats.teardownRate > 0, `${game.stats.tea
 check('Sichtbares Wachstum (>=6 Anlagen-Arten)', seen.size >= 6, `${seen.size} Arten`);
 check('Gelände wächst (mind. 1 Grundstück)', lots.length >= 1, `${lots.length} Grundstücke`);
 check('Wirtschaft: Verträge laufen', contractsDone >= 1, `${contractsDone} erfüllt`);
+check('Strom gedeckt', game.stats.power.factor >= 0.99, `${Math.round(game.stats.power.factor * 100)} %`);
+check('Anlagen gepflegt (>60 %)', game.stats.condition > 0.6, `${Math.round(game.stats.condition * 100)} %`);
 
 function check(label, ok, detail) {
   console.log(`  ${ok ? '✅' : '❌'} ${label} — ${detail}`);

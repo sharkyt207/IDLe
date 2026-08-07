@@ -11,6 +11,7 @@ src/
     types.ts       Typdefinitionen aller Inhalte + Effekt-Deskriptoren
     balance.ts     Zentrale Stellschrauben (Start, Tickrate, Offline, Prestige …)
     economy.ts     Wirtschafts-Stellschrauben (Margen, Qualität, Markt, Verträge)
+    machines.ts    Maschinenstufen, Energie, Verschleiß
     materials.ts   Materialdatenbank + Verarbeitungsrezepte
     vehicles.ts    Fahrzeugdatenbank: Klassenvorlagen, Preise werden abgeleitet
     purchasables.ts Werkzeuge, Maschinen, Mitarbeiter, Gebäude, Grundstücke, Deko
@@ -26,7 +27,7 @@ src/
     stats.ts       Leitet aus Besitz/Forschung/Prestige die abgeleiteten Werte ab
     save.ts        Versionierte Speicherstände inkl. Migration & Reparatur
     game.ts        Orchestrator: Aktionen + fester Simulationsschritt
-    systems/       teardown · logistics · market · processing · offline
+    systems/       teardown · logistics · market · processing · maintenance · offline
 
   economy/       Wirtschaft (GDD Kapitel 4), unabhängig austauschbare Module
     market.ts      Preismodell: Drift, Qualität, Entsorgung, Trends
@@ -87,6 +88,7 @@ im passenden System.
 | Neues Grundstück | `lots.ts` (Geometrie) + `purchasables.ts` (Preis) | keiner |
 | Neue Dekoration | `purchasables.ts` + Modell in `models.ts` | keiner |
 | Neues Gebäudemodell | `models.ts` (Tabelleneintrag) | keiner |
+| Neue Maschine / Linie / Kraftwerk | `purchasables.ts` + Modell in `models.ts` | keiner |
 | Neue **Art** von Wirkung | `types.ts` + `stats.ts` + System | ja, klein |
 
 Freischaltungen laufen über `requires` (Level, Forschung, Besitz, Flags) und werden auf jeder
@@ -115,6 +117,21 @@ Rezepte, Forschungen) und meldet Fehler in der Konsole.
   Start zu blockieren.
 
 Dadurch überlebt ein Spielstand Inhalts-Updates, auch wenn Inhalte entfernt werden.
+
+## Die Maschinen
+
+Drei getrennte Fortschrittsachsen, absichtlich: **Stufe** (eine bessere Maschine ersetzt die
+alte), **Level** (10 Ausbaustufen pro Maschine, bis +150 %) und **Linie** (parallele
+Produktionslinien multiplizieren alles). Levels allein würden das Spätspiel abflachen, Linien
+allein die einzelne Maschine bedeutungslos machen.
+
+Deshalb bedeutet `maxCount` bei `category: 'machine'` den **Levelcap**, nicht die Stückzahl:
+Effekte skalieren über die Leveltabelle statt linear. Das gilt für alle Maschinen — als die
+Logistikfahrzeuge noch stückzahlbasiert waren, taten Käufe oberhalb von Level 10 schlicht nichts.
+
+Strom und Verschleiß sind Effizienzfaktoren, keine Stopper: Unterversorgung drosselt auf
+minimal 40 %, völliger Verschleiß auf 60 %. Beides fließt in `stats.ts` in die Raten ein, womit
+auch die Offline-Produktion automatisch damit rechnet.
 
 ## Die Wirtschaft
 

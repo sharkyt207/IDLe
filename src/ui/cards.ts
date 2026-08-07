@@ -1,4 +1,5 @@
-import { money } from '../core/format';
+import { fmt, money } from '../core/format';
+import { MACHINES, levelMultiplier } from '../data/machines';
 import type { PurchasableDef } from '../data/types';
 import type { Game } from '../game/game';
 import { meetsRequirement, nextCost, requirementText } from '../game/stats';
@@ -16,6 +17,7 @@ export function purchasableCard(game: Game, def: PurchasableDef, onBuy: () => vo
   const cost = nextCost(game.state, def.id);
   const affordable = game.state.money >= cost;
 
+  const isMachine = def.category === 'machine';
   const card = el('div', `card${unlocked ? '' : ' locked'}`);
 
   const icon = el('div', 'card-icon', def.icon);
@@ -25,23 +27,39 @@ export function purchasableCard(game: Game, def: PurchasableDef, onBuy: () => vo
   const title = el('div', 'card-title');
   title.appendChild(document.createTextNode(def.name));
   if (count > 0) {
-    const badge = el('span', 'count', `×${count}`);
-    title.appendChild(badge);
+    // Machines are levelled, everything else is counted.
+    title.appendChild(el('span', 'count', isMachine ? `Stufe ${count}/${def.maxCount}` : `×${count}`));
   }
   body.appendChild(title);
   body.appendChild(el('div', 'card-desc', def.desc));
 
+  if (isMachine && count > 0) {
+    const condition = game.state.condition[def.id] ?? 1;
+    const parts = [`Leistung ×${levelMultiplier(count).toFixed(2)}`];
+    if (count >= MACHINES.qualityFromLevel) parts.push('Qualitätsbonus');
+    if (count >= MACHINES.master.level) parts.push('Meisterstufe: Energiebonus + Fundchance');
+    body.appendChild(el('div', 'card-desc', parts.join(' · ')));
+    body.appendChild(
+      el(
+        'div',
+        condition < MACHINES.wear.warnBelow ? 'card-note' : 'card-desc',
+        `Zustand ${fmt(condition * 100, 0)} %`,
+      ),
+    );
+  }
+
   if (!unlocked) {
     body.appendChild(el('div', 'card-note', `🔒 ${requirementText(def.requires)}`));
   } else if (maxed) {
-    body.appendChild(el('div', 'card-note', '✔ Maximal ausgebaut'));
+    body.appendChild(el('div', 'card-note', isMachine ? '✔ Meisterstufe erreicht' : '✔ Maximal ausgebaut'));
   }
   card.appendChild(body);
 
   const actions = el('div', 'card-actions');
   if (unlocked && !maxed) {
     const btn = el('button', affordable ? 'primary' : '');
-    btn.innerHTML = `Kaufen<span class="price">${money(cost)}</span>`;
+    const label = isMachine && count > 0 ? `Stufe ${count + 1}` : 'Kaufen';
+    btn.innerHTML = `${label}<span class="price">${money(cost)}</span>`;
     btn.disabled = !affordable;
     btn.addEventListener('click', () => {
       if (game.buyPurchasable(def.id)) onBuy();

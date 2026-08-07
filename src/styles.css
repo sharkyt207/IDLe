@@ -716,3 +716,21 @@ textarea {
   padding: 5px 10px;
   font-size: 12.5px;
 }
+
+/* Category chooser with more entries than fit: swipe instead of squash. */
+.seg-row {
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.seg-row::-webkit-scrollbar {
+  display: none;
+}
+
+.seg-row > button {
+  flex: 0 0 auto;
+  min-width: 86px;
+}

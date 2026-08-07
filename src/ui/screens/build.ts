@@ -4,12 +4,17 @@ import type { PurchaseCategory } from '../../data/types';
 import type { Game } from '../../game/game';
 import { meetsRequirement, nextCost } from '../../game/stats';
 import { owned } from '../../game/state';
+import { MACHINES } from '../../data/machines';
+import { money } from '../../core/format';
+import { needsService, serviceAll, serviceCost } from '../../game/systems/maintenance';
 import { purchasableCard, renderGroups } from '../cards';
 import { clear, el } from '../dom';
 import type { Screen } from '../screen';
 
 const TABS: { id: PurchaseCategory; label: string; icon: string }[] = [
   { id: 'machine', label: 'Maschinen', icon: '🤖' },
+  { id: 'line', label: 'Linien', icon: '🏭' },
+  { id: 'power', label: 'Energie', icon: '⚡' },
   { id: 'employee', label: 'Team', icon: '👷' },
   { id: 'building', label: 'Gelände', icon: '🏢' },
   { id: 'lot', label: 'Grundstück', icon: '🗺️' },
@@ -42,7 +47,9 @@ export class BuildScreen implements Screen {
     grid.appendChild(stat(rate(this.game.stats.autoSellPerSec), 'Auto-Verkauf'));
     this.root.appendChild(grid);
 
-    const tabs = el('div', 'btn-row');
+    this.renderPlant();
+
+    const tabs = el('div', 'btn-row seg-row');
     for (const tab of TABS) {
       const btn = el('button', this.tab === tab.id ? 'primary' : 'ghost');
       btn.innerHTML = `${tab.icon}<span class="price">${tab.label}</span>`;
@@ -69,6 +76,61 @@ export class BuildScreen implements Screen {
     );
   }
 
+  /** Energy budget and maintenance - the two dials from GDD chapter 5. */
+  private renderPlant(): void {
+    const { game } = this;
+    const { supply, demand, factor } = game.stats.power;
+    if (demand <= 0 && game.state.level < 4) return;
+
+    const box = el('div', 'card');
+    box.appendChild(el('div', 'card-icon', '⚡'));
+    const body = el('div', 'card-body');
+    body.appendChild(el('div', 'card-title', `Strom ${fmt(supply, 0)} / ${fmt(demand, 0)} kW`));
+
+    const bar = el('div', 'xp-bar');
+    const fill = el('i');
+    fill.style.width = `${Math.min(100, demand > 0 ? (supply / demand) * 100 : 100)}%`;
+    if (factor < 1) fill.style.background = 'var(--warn)';
+    bar.appendChild(fill);
+    bar.style.margin = '5px 0';
+    body.appendChild(bar);
+
+    body.appendChild(
+      el(
+        'div',
+        factor < MACHINES.power.warnRatio ? 'card-note' : 'card-desc',
+        factor < 1
+          ? `Unterversorgt — Anlagen laufen mit ${fmt(factor * 100, 0)} %. Mehr Kraftwerke bauen.`
+          : 'Versorgung gedeckt.',
+      ),
+    );
+    body.appendChild(
+      el(
+        'div',
+        needsService(game) ? 'card-note' : 'card-desc',
+        `Anlagenzustand ${fmt(game.stats.condition * 100, 0)} %${
+          game.stats.autoService > 0 ? ' · automatische Wartung aktiv' : ''
+        }`,
+      ),
+    );
+    box.appendChild(body);
+
+    const cost = serviceCost(game);
+    if (cost > 0) {
+      const actions = el('div', 'card-actions');
+      const btn = el('button', game.state.money >= cost ? 'primary' : '');
+      btn.innerHTML = `Warten<span class="price">${money(cost)}</span>`;
+      btn.disabled = game.state.money < cost;
+      btn.addEventListener('click', () => {
+        serviceAll(game);
+        this.refresh();
+      });
+      actions.appendChild(btn);
+      box.appendChild(actions);
+    }
+    this.root.appendChild(box);
+  }
+
   /**
    * Keeps the list readable: a locked entry only shows once the player is
    * close to it (previous tier owned, or nothing of its group owned yet).
@@ -76,7 +138,7 @@ export class BuildScreen implements Screen {
   private isVisible(id: string): boolean {
     const def = Content.purchasable(id);
     if (!def) return false;
-    if (def.category === 'lot' || def.category === 'decor') return true;
+    if (['lot', 'decor', 'power', 'line'].includes(def.category)) return true;
     if (owned(this.game.state, id) > 0) return true;
     if (meetsRequirement(this.game.state, this.game.stats, def.requires)) return true;
     // Locked: show if it is the next step of its group, hide deeper tiers.
