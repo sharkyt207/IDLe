@@ -1,4 +1,6 @@
 import { Content } from '../../data';
+import { qualityName } from '../../data/economy';
+import { priceInfo } from '../../economy/market';
 import { fmt, money, rate, units } from '../../core/format';
 import type { Game } from '../../game/game';
 import { craftsAvailable, craftsThatFit } from '../../game/systems/processing';
@@ -21,7 +23,7 @@ export class StorageScreen implements Screen {
   private stockValue(): number {
     let total = 0;
     for (const [id, amount] of Object.entries(this.game.state.storage)) {
-      total += amount * this.game.sellPrice(id);
+      total += amount * Math.max(0, this.game.sellPrice(id));
     }
     return total;
   }
@@ -32,6 +34,7 @@ export class StorageScreen implements Screen {
 
     const grid = el('div', 'stat-grid');
     grid.appendChild(stat(money(this.stockValue()), 'Lagerwert'));
+    grid.appendChild(stat(qualityName(game.stats.quality), 'Anlagenqualität'));
     grid.appendChild(stat(`${units(game.storageUsed())} / ${units(game.stats.storage)}`, 'Belegung'));
     this.root.appendChild(grid);
 
@@ -69,8 +72,9 @@ export class StorageScreen implements Screen {
     const { game } = this;
     const def = Content.material(materialId)!;
     const amount = game.state.storage[materialId] ?? 0;
-    const price = game.sellPrice(materialId);
-    const drift = game.marketFactor(materialId);
+    const info = priceInfo(game.state, game.stats, materialId);
+    const price = info.price;
+    const drift = info.drift;
     const locked = !!game.state.autoSellLocked[materialId];
 
     const row = el('div', 'mat-row');
@@ -81,11 +85,17 @@ export class StorageScreen implements Screen {
     const body = el('div', 'card-body');
     body.appendChild(el('div', 'card-title', def.name));
     const priceLine = el('div', 'mat-price');
-    const trend = drift >= 1 ? 'trend-up' : 'trend-down';
-    priceLine.innerHTML = `${money(price)}/Stk <span class="${trend}">${
-      drift >= 1 ? '▲' : '▼'
-    } ${Math.abs((drift - 1) * 100).toFixed(0)} %</span>`;
+    const trend = info.trend > 0 ? 'trend-up' : info.trend < 0 ? 'trend-down' : '';
+    const arrow = info.trend > 0 ? '▲' : info.trend < 0 ? '▼' : '▬';
+    priceLine.innerHTML = info.disposal
+      ? `<span class="trend-down">Entsorgung ${money(-price)}/Stk</span>`
+      : `${money(price)}/Stk <span class="${trend}">${arrow} ${Math.abs((drift - 1) * 100).toFixed(0)} %</span>`;
     body.appendChild(priceLine);
+    if (!info.disposal) {
+      body.appendChild(
+        el('div', 'mat-price', `Qualität: ${qualityName(game.state.quality[materialId] ?? game.stats.quality)}`),
+      );
+    }
     row.appendChild(body);
 
     const amountBox = el('div');
@@ -95,7 +105,7 @@ export class StorageScreen implements Screen {
     row.appendChild(amountBox);
 
     const actions = el('div', 'card-actions');
-    const sell = el('button', 'primary', 'Verkaufen');
+    const sell = el('button', info.disposal ? '' : 'primary', info.disposal ? 'Entsorgen' : 'Verkaufen');
     sell.addEventListener('click', () => {
       this.game.sellMaterial(materialId);
       this.refresh();

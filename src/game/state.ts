@@ -41,6 +41,8 @@ export interface GameState {
 
   /** material id -> units in storage. */
   storage: Record<string, number>;
+  /** material id -> weighted average quality of that pile, 0…1. */
+  quality: Record<string, number>;
   /** purchasable id -> owned count. */
   owned: Record<string, number>;
 
@@ -63,6 +65,20 @@ export interface GameState {
     runs: number;
     bestRun: number;
   };
+
+  /** Contracts and auctions (GDD chapter 4). */
+  trade: {
+    offers: ContractOffer[];
+    active: ActiveContract[];
+    /** Seconds until the offer list rotates. */
+    offerTimer: number;
+    auction: AuctionState | null;
+    /** Seconds until the next lot goes up. */
+    auctionTimer: number;
+  };
+
+  /** Collectible id -> how many are in the display case. */
+  collection: Record<string, number>;
 
   /** Map state (GDD chapter 3). Geometry itself is derived, not stored. */
   world: {
@@ -92,6 +108,39 @@ export interface GameState {
   settings: { haptics: boolean };
 }
 
+/** A customer's open request. */
+export interface ContractOffer {
+  /** Unique per offer, not per contract type. */
+  key: string;
+  defId: string;
+  demand: { material: string; amount: number }[];
+  payout: number;
+  /** EUR per second while the contract runs. */
+  income: number;
+}
+
+export interface ActiveContract extends ContractOffer {
+  delivered: Record<string, number>;
+  /** Seconds of recurring income left; 0 while still being fulfilled. */
+  incomeLeft: number;
+  done: boolean;
+}
+
+export interface AuctionState {
+  lotId: string;
+  /** Estimated market value of the lot. */
+  value: number;
+  bid: number;
+  increment: number;
+  playerLeads: boolean;
+  /** Seconds left in the bidding window. */
+  timeLeft: number;
+  /** Seconds until the AI reacts again. */
+  aiThink: number;
+  /** The AI never bids above this. */
+  aiMax: number;
+}
+
 export const SAVE_VERSION = 1;
 
 export function createInitialState(carryPrestige?: GameState['prestige']): GameState {
@@ -110,6 +159,7 @@ export function createInitialState(carryPrestige?: GameState['prestige']): GameS
     xp: 0,
 
     storage: {},
+    quality: {},
     owned: {},
 
     research: { done: [], active: null },
@@ -123,6 +173,9 @@ export function createInitialState(carryPrestige?: GameState['prestige']): GameS
     autoSellLocked: {},
 
     prestige: carryPrestige ?? { reputation: 0, perks: {}, runs: 0, bestRun: 0 },
+
+    trade: { offers: [], active: [], offerTimer: 20, auction: null, auctionTimer: 90 },
+    collection: {},
 
     world: { placements: {}, dayTime: 300, weather: 'clear', weatherLeft: 120 },
 

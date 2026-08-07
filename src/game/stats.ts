@@ -1,4 +1,5 @@
 import { BALANCE } from '../data/balance';
+import { ECONOMY } from '../data/economy';
 import { Content } from '../data';
 import type { Effect, MultiplierTarget, Requirement } from '../data/types';
 import type { GameState } from './state';
@@ -21,6 +22,8 @@ export interface Stats {
   unlocks: Set<string>;
   /** Cosmetic prestige - decoration and plots, never production. */
   companyValue: number;
+  /** Average material quality the yard produces, 0…1. */
+  quality: number;
 }
 
 const NEUTRAL: Record<MultiplierTarget, number> = {
@@ -45,6 +48,7 @@ interface Accumulator {
   mult: Record<MultiplierTarget, number>;
   unlocks: Set<string>;
   companyValue: number;
+  quality: number;
 }
 
 function applyEffect(acc: Accumulator, effect: Effect, count: number): void {
@@ -79,6 +83,9 @@ function applyEffect(acc: Accumulator, effect: Effect, count: number): void {
     case 'companyValue':
       acc.companyValue += effect.amount * count;
       break;
+    case 'quality':
+      acc.quality += effect.amount * count;
+      break;
     case 'unlock':
       if (count > 0) acc.unlocks.add(effect.id);
       break;
@@ -103,6 +110,7 @@ export function computeStats(state: GameState): Stats {
     mult: { ...NEUTRAL },
     unlocks: new Set<string>(),
     companyValue: 0,
+    quality: ECONOMY.quality.base,
   };
 
   for (const def of Content.purchasables) {
@@ -143,6 +151,7 @@ export function computeStats(state: GameState): Stats {
     mult: acc.mult,
     unlocks: acc.unlocks,
     companyValue: acc.companyValue,
+    quality: Math.max(0, Math.min(ECONOMY.quality.max, acc.quality)),
   };
 }
 

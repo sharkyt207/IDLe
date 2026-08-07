@@ -60,6 +60,76 @@ function sanitize(raw: Record<string, unknown>): GameState {
     }
   }
 
+  // Quality only makes sense for material that is actually there.
+  state.quality = {};
+  for (const [id, value] of Object.entries(src.quality ?? {})) {
+    if (state.storage[id] !== undefined && typeof value === 'number' && Number.isFinite(value)) {
+      state.quality[id] = Math.max(0, Math.min(1, value));
+    }
+  }
+
+  state.collection = {};
+  for (const [id, count] of Object.entries(src.collection ?? {})) {
+    if (Content.collectible(id) && typeof count === 'number' && count > 0) {
+      state.collection[id] = Math.floor(count);
+    }
+  }
+
+  const validDemand = (demand: unknown): demand is { material: string; amount: number }[] =>
+    Array.isArray(demand) &&
+    demand.every((d) => d && Content.material((d as { material: string }).material));
+  const cleanOffer = (offer: unknown) => {
+    const o = offer as { key?: string; defId?: string; demand?: unknown; payout?: number; income?: number };
+    if (!o?.key || !o.defId || !Content.contract(o.defId) || !validDemand(o.demand)) return null;
+    return {
+      key: String(o.key),
+      defId: o.defId,
+      demand: o.demand,
+      payout: Math.max(0, num(o.payout, 0)),
+      income: Math.max(0, num(o.income, 0)),
+    };
+  };
+
+  const offers = (src.trade?.offers ?? []).map(cleanOffer).filter((o) => o !== null);
+  const activeContracts = (src.trade?.active ?? [])
+    .map((entry) => {
+      const base = cleanOffer(entry);
+      if (!base) return null;
+      const source = entry as unknown as { delivered?: Record<string, number>; incomeLeft?: number; done?: boolean };
+      const delivered: Record<string, number> = {};
+      for (const [id, amount] of Object.entries(source.delivered ?? {})) {
+        if (Content.material(id) && typeof amount === 'number' && amount > 0) delivered[id] = amount;
+      }
+      return {
+        ...base,
+        delivered,
+        incomeLeft: Math.max(0, num(source.incomeLeft, 0)),
+        done: source.done === true,
+      };
+    })
+    .filter((c) => c !== null);
+
+  const rawAuction = src.trade?.auction;
+  state.trade = {
+    offers,
+    active: activeContracts,
+    offerTimer: Math.max(0, num(src.trade?.offerTimer, 20)),
+    auction:
+      rawAuction && Content.auctionLot(rawAuction.lotId)
+        ? {
+            lotId: rawAuction.lotId,
+            value: Math.max(0, num(rawAuction.value, 0)),
+            bid: Math.max(0, num(rawAuction.bid, 0)),
+            increment: Math.max(1, num(rawAuction.increment, 1)),
+            playerLeads: rawAuction.playerLeads === true,
+            timeLeft: Math.max(0, num(rawAuction.timeLeft, 0)),
+            aiThink: Math.max(0, num(rawAuction.aiThink, 0)),
+            aiMax: Math.max(0, num(rawAuction.aiMax, 0)),
+          }
+        : null,
+    auctionTimer: Math.max(0, num(src.trade?.auctionTimer, 90)),
+  };
+
   state.autoSellLocked = {};
   for (const [id, locked] of Object.entries(src.autoSellLocked ?? {})) {
     if (Content.material(id) && locked === true) state.autoSellLocked[id] = true;

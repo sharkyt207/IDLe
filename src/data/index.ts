@@ -2,6 +2,12 @@ import { MATERIALS, RECIPES } from './materials';
 import { PURCHASABLES } from './purchasables';
 import { PRESTIGE_PERKS, RESEARCH } from './research';
 import { VEHICLES } from './vehicles';
+import { AUCTION_LOTS, COLLECTIBLES, CONTRACTS } from './trade';
+import type {
+  AuctionLotDef,
+  CollectibleDef,
+  ContractDef,
+} from './trade';
 import type {
   MaterialDef,
   PrestigePerkDef,
@@ -32,6 +38,9 @@ const vehicleMap = index(VEHICLES);
 const purchasableMap = index(PURCHASABLES);
 const researchMap = index(RESEARCH);
 const perkMap = index(PRESTIGE_PERKS);
+const contractMap = index(CONTRACTS);
+const auctionMap = index(AUCTION_LOTS);
+const collectibleMap = index(COLLECTIBLES);
 
 export const Content = {
   materials: MATERIALS as readonly MaterialDef[],
@@ -40,6 +49,9 @@ export const Content = {
   purchasables: PURCHASABLES as readonly PurchasableDef[],
   research: RESEARCH as readonly ResearchDef[],
   perks: PRESTIGE_PERKS as readonly PrestigePerkDef[],
+  contracts: CONTRACTS as readonly ContractDef[],
+  auctionLots: AUCTION_LOTS as readonly AuctionLotDef[],
+  collectibles: COLLECTIBLES as readonly CollectibleDef[],
 
   material: (id: string) => materialMap.get(id),
   recipe: (id: string) => recipeMap.get(id),
@@ -47,6 +59,9 @@ export const Content = {
   purchasable: (id: string) => purchasableMap.get(id),
   researchNode: (id: string) => researchMap.get(id),
   perk: (id: string) => perkMap.get(id),
+  contract: (id: string) => contractMap.get(id),
+  auctionLot: (id: string) => auctionMap.get(id),
+  collectible: (id: string) => collectibleMap.get(id),
 
   /** Materials sorted for the storage screen: tier, then value. */
   materialsSorted(): MaterialDef[] {
@@ -104,7 +119,27 @@ export function validateContent(): string[] {
   }
   for (const v of VEHICLES) checkRequires(`Fahrzeug ${v.id}`, v.requires);
 
+  for (const c of CONTRACTS) {
+    for (const d of c.demand) mat(d.material, `Vertrag ${c.id}`);
+  }
+  for (const lot of AUCTION_LOTS) {
+    for (const m of lot.materials ?? []) mat(m.material, `Auktion ${lot.id}`);
+    for (const v of lot.vehicles ?? []) {
+      if (!vehicleMap.has(v.id)) problems.push(`Auktion ${lot.id}: unbekanntes Fahrzeug "${v.id}"`);
+    }
+  }
+
   return problems;
 }
 
-export type { MaterialDef, RecipeDef, VehicleDef, PurchasableDef, ResearchDef, PrestigePerkDef };
+export type {
+  MaterialDef,
+  RecipeDef,
+  VehicleDef,
+  PurchasableDef,
+  ResearchDef,
+  PrestigePerkDef,
+  ContractDef,
+  AuctionLotDef,
+  CollectibleDef,
+};

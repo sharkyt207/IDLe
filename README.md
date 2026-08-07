@@ -4,8 +4,9 @@ Idle-/Tycoon-Prototyp für Smartphones: aus einem verlassenen Schrottplatz wird 
 Schritt ein automatisiertes Recycling-Imperium.
 
 Umsetzung von [GDD Kapitel 1 (Vision)](docs/gdd/01-vision.md),
-[Kapitel 2 (Core Gameplay)](docs/gdd/02-core-gameplay.md) und
-[Kapitel 3 (Spielwelt)](docs/gdd/03-world.md).
+[Kapitel 2 (Core Gameplay)](docs/gdd/02-core-gameplay.md),
+[Kapitel 3 (Spielwelt)](docs/gdd/03-world.md) und
+[Kapitel 4 (Wirtschaft)](docs/gdd/04-economy.md).
 
 ## Loslegen
 
@@ -36,8 +37,13 @@ Sortiermaschine und Roboter bis zur KI-Zerlegelinie. Jede Stufe nimmt dem Spiele
 **Produktionsketten** — Schmelzofen, Drahtzieherei, Gummimühle, Plattenpresse und
 Platinenfertigung veredeln Rohstoffe zu deutlich wertvolleren Produkten.
 
-**Forschung** mit 16 Knoten in vier Zweigen, **Prestige** mit sieben dauerhaften Boni,
-11 Fahrzeugtypen, 15 Materialien, 50+ Kaufobjekte.
+**Wirtschaft mit Tiefe** — 28 Fahrzeuge in sechs Qualitätsklassen, 46 Materialien von
+Eisenschrott bis Palladium, fünf Qualitätsstufen, 15 Produktionsrezepte, dynamische Marktpreise,
+acht Vertragskunden mit laufendem Einkommen, Auktionen gegen KI-Bieter, neun Sammler-Fundstücke
+und ein Firmenwert aus allem, was gebaut wurde.
+
+**Forschung** mit 21 Knoten in vier Zweigen, **Prestige** mit sieben dauerhaften Boni,
+60+ Kaufobjekte.
 
 **Isometrische Spielwelt**, die mit jedem Kauf sichtbar wächst: zehn zukaufbare Grundstücke vom
 Lagerplatz bis zum eigenen Stahlwerk, Anlagen mit fünf Ausbaustufen, LKW die echte Wege über die
@@ -53,7 +59,7 @@ Die Kamera bleibt jederzeit unter Kontrolle des Spielers.
 ## Technik
 
 TypeScript + Vite, **keine Laufzeit-Abhängigkeiten**. Oberfläche als DOM, die Spielwelt als
-isometrisches Canvas aus Vektorformen — dadurch ≈ 37 kB gzip und flüssiger Betrieb auf
+isometrisches Canvas aus Vektorformen — dadurch ≈ 46 kB gzip und flüssiger Betrieb auf
 Mittelklasse-Geräten. Gezeichnet wird nur, was im Bild ist; Animationen pausieren, sobald der
 Hof nicht der aktive Screen ist.
 
@@ -65,7 +71,7 @@ Speicherstände sind versioniert, werden beim Laden saniert und überstehen Inha
 
 ## Stand
 
-Spielbarer Prototyp. Die Kapitel 1 bis 3 des GDD sind umgesetzt; Kapitel 4 ff. sind noch offen.
+Spielbarer Prototyp. Die Kapitel 1 bis 4 des GDD sind umgesetzt; Kapitel 5 ff. sind noch offen.
 
 Bewusst noch nicht enthalten: **Ton**. Das GDD nennt Metallgeräusche als Feedback — der Prototyp
 liefert stattdessen Partikel, schwebende Beträge, Fortschrittsbalken und optionale Vibration.

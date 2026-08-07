@@ -10,9 +10,12 @@ src/
   data/          Inhalte & Balancing  ← hier arbeiten Designer
     types.ts       Typdefinitionen aller Inhalte + Effekt-Deskriptoren
     balance.ts     Zentrale Stellschrauben (Start, Tickrate, Offline, Prestige …)
-    materials.ts   Materialien + Verarbeitungsrezepte
-    vehicles.ts    Lieferungen inkl. Teile, Hotspots, Fundstücke
-    purchasables.ts Werkzeuge, Maschinen, Mitarbeiter, Gebäude
+    economy.ts     Wirtschafts-Stellschrauben (Margen, Qualität, Markt, Verträge)
+    materials.ts   Materialdatenbank + Verarbeitungsrezepte
+    vehicles.ts    Fahrzeugdatenbank: Klassenvorlagen, Preise werden abgeleitet
+    purchasables.ts Werkzeuge, Maschinen, Mitarbeiter, Gebäude, Grundstücke, Deko
+    trade.ts       Verträge, Auktionslose, Fundstücke
+    lots.ts        Kartengeometrie der Grundstücke
     research.ts    Forschungsbaum + Prestige-Boni
     index.ts       Registry + Inhalts-Validierung
 
@@ -24,6 +27,14 @@ src/
     save.ts        Versionierte Speicherstände inkl. Migration & Reparatur
     game.ts        Orchestrator: Aktionen + fester Simulationsschritt
     systems/       teardown · logistics · market · processing · offline
+
+  economy/       Wirtschaft (GDD Kapitel 4), unabhängig austauschbare Module
+    market.ts      Preismodell: Drift, Qualität, Entsorgung, Trends
+    inventory.ts   Lager mit gewichteter Qualität pro Haufen
+    contracts.ts   Angebote, Annahme, Lieferung, laufendes Einkommen
+    auctions.ts    Lose, Gebote, KI-Mitbieter
+    collection.ts  Zufallsfunde und Vitrine
+    manager.ts     Tick-Einbindung und Firmenwert
 
   world/         Spielwelt (GDD Kapitel 3), unabhängig austauschbare Module
     iso.ts         Isometrische Projektion (64:36 ≈ 29,4°)
@@ -65,8 +76,10 @@ im passenden System.
 
 | Wunsch | Datei | Nötiger Code |
 | ------ | ----- | ------------ |
-| Neues Fahrzeug | `vehicles.ts` | keiner — der Renderer nutzt `shape` + normalisierte Hotspots |
+| Neues Fahrzeug | `vehicles.ts` (vier Zeilen: Klasse + `scale`) | keiner — Preis, Arbeit und XP werden abgeleitet |
+| Neue Fahrzeugklasse | `vehicles.ts` (`CLASSES`) | keiner |
 | Neues Material | `materials.ts` | keiner |
+| Neuer Kunde / Auktionslos / Fundstück | `trade.ts` | keiner |
 | Neue Produktionskette | `materials.ts` (`RECIPES`) + Maschine mit `process`-Effekt | keiner |
 | Neue Maschine / Mitarbeiter / Gebäude | `purchasables.ts` | keiner |
 | Neue Forschung | `research.ts` | keiner |
@@ -102,6 +115,21 @@ Rezepte, Forschungen) und meldet Fehler in der Konsole.
   Start zu blockieren.
 
 Dadurch überlebt ein Spielstand Inhalts-Updates, auch wenn Inhalte entfernt werden.
+
+## Die Wirtschaft
+
+Der Kaufpreis eines Fahrzeugs wird **nie von Hand gesetzt**: er ist
+`Materialwert ÷ Klassenmarge` aus `economy.ts`. Damit kann eine Preisanpassung an einem Material
+die Fahrzeugleiter nicht mehr still umkehren — ein Fehler, den ein früherer Datensatz genau so
+hatte (ab Stufe 2 waren alle Lieferungen Verlustgeschäfte).
+
+Ein Materialhaufen trägt einen gewichteten Qualitätsdurchschnitt statt einer Menge pro
+Qualitätsstufe. Das kostet einen Bruchteil der Speichergröße, liefert dem Spieler aber dieselbe
+Rückmeldung: bessere Maschinen heben den Schnitt, der Preis folgt.
+
+Betriebsstoffe haben einen **negativen** Preis, bis die Recycling-Forschung abgeschlossen ist.
+Die Verkaufsautomatik rührt sie erst an, wenn das Lager zu 85 % voll ist, damit Flüssigkeiten
+nicht unbemerkt das Konto leeren.
 
 ## Die Spielwelt
 

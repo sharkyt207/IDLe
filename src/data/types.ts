@@ -47,6 +47,8 @@ export type Effect =
   | { kind: 'multiplier'; target: MultiplierTarget; factor: number }
   /** Cosmetic prestige. Raises the company value, never the production. */
   | { kind: 'companyValue'; amount: number }
+  /** Raises the average material quality the yard produces (0…1, additive). */
+  | { kind: 'quality'; amount: number }
   /** Unlocks content that is otherwise gated (vehicles, recipes, purchasables). */
   | { kind: 'unlock'; id: string };
 
@@ -80,10 +82,17 @@ export interface MaterialDef {
   name: string;
   icon: string;
   color: string;
-  /** 0 = raw scrap, 1 = refined, 2 = component. Used for sorting and unlocks. */
+  /** 0 raw · 1 refined · 2 component · 3 finished good. */
   tier: number;
-  /** Base price per unit in EUR. Market drift is applied on top. */
+  /** UI grouping: Metall, Kunststoff, Glas, Elektronik, Flüssigkeit, Selten … */
+  category: string;
+  /** Base price per unit in EUR. Market drift and quality apply on top. */
   basePrice: number;
+  /**
+   * Fluids and similar must be disposed of properly: they cost money instead
+   * of earning it, until the recycling research turns them into a product.
+   */
+  hazardous?: boolean;
 }
 
 export interface RecipeDef {
@@ -109,9 +118,12 @@ export interface PartDef {
   yields: { material: string; min: number; max: number }[];
   /** Instant cash for scrap dealers, keeps the very early loop rewarding. */
   cash?: number;
-  /** Hotspot position on the vehicle sprite, normalized 0..1. */
-  x: number;
-  y: number;
+  /**
+   * Legacy hotspot position on the flat sprite. The isometric view lays the
+   * markers out on a ring instead, so this is optional.
+   */
+  x?: number;
+  y?: number;
 }
 
 export interface VehicleDef {
@@ -121,7 +133,12 @@ export interface VehicleDef {
   shape: VehicleShape;
   color: string;
   rarity: Rarity;
-  /** Purchase price in EUR before discounts. */
+  /** Quality class 1–6 (Alltag … Industrie), see GDD chapter 4. */
+  vehicleClass: number;
+  /**
+   * Purchase price in EUR, derived from the material value and the class
+   * margin in `economy.ts` - never hand-tuned, so the ladder stays profitable.
+   */
   price: number;
   /** Cosmetic/flavour, also feeds the delivery card. */
   weightKg: number;

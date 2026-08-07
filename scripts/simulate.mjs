@@ -30,7 +30,9 @@ await build({
   },
 });
 
-const { Game, Content, nextCost } = await import(resolve(outDir, 'sim.mjs'));
+const { Game, Content, nextCost, acceptOffer, deliver, canAccept, companyValue } = await import(
+  resolve(outDir, 'sim.mjs'),
+);
 
 const minutes = Number(process.argv[2] ?? 30);
 const TICK = 0.1;
@@ -139,6 +141,44 @@ function maybePrestige() {
   }
 }
 
+/**
+ * Takes on contracts the yard can actually supply and ships what it can.
+ * A player reads the demand before signing; so does the bot.
+ */
+let contractsDone = 0;
+const acceptedAt = new Map();
+function producible() {
+  const set = new Set(Object.keys(game.state.storage));
+  const vehicle = Content.vehicle(game.state.autoBuyVehicle);
+  for (const part of vehicle?.parts ?? []) {
+    for (const y of part.yields) set.add(y.material);
+  }
+  // Anything the yard refines itself counts too.
+  for (const recipeId of Object.keys(game.stats.processes)) {
+    for (const out of Content.recipe(recipeId)?.output ?? []) set.add(out.material);
+  }
+  return set;
+}
+
+function trade() {
+  const state = game.state;
+  const supply = producible();
+  for (const offer of [...state.trade.offers]) {
+    if (!canAccept(game)) break;
+    if (!offer.demand.every((d) => supply.has(d.material))) continue;
+    acceptOffer(game, offer.key);
+    acceptedAt.set(offer.key, clock);
+    events.push([clock, `Auftrag: ${Content.contract(offer.defId)?.client ?? offer.defId}`]);
+  }
+  for (const contract of [...state.trade.active]) {
+    if (contract.done) continue;
+    const before = contract.done;
+    deliver(game, contract.key);
+    const now = state.trade.active.find((c) => c.key === contract.key);
+    if (!before && now?.done) contractsDone++;
+  }
+}
+
 /** Starts whatever research is affordable - it is always a permanent gain. */
 function research() {
   if (game.state.research.active) return;
@@ -177,6 +217,7 @@ for (let step = 0; step < totalSteps; step++) {
     // always empty when the upgrade decision is made.
     chooseDelivery();
     research();
+    trade();
     invest();
     maybePrestige();
     if (!game.state.active && game.state.queue.length === 0) {
@@ -217,7 +258,11 @@ const lots = Content.purchasables.filter((d) => d.category === 'lot' && (game.st
 const decor = Content.purchasables.filter((d) => d.category === 'decor' && (game.state.owned[d.id] ?? 0) > 0);
 console.log('  Grundstücke        ', lots.length, '/', Content.purchasables.filter((d) => d.category === 'lot').length);
 console.log('  Deko-Arten         ', decor.length);
-console.log('  Firmenwert         ', Math.round(game.stats.companyValue).toLocaleString('de-DE'), '€');
+console.log('  Firmenwert         ', Math.round(companyValue(game)).toLocaleString('de-DE'), '€');
+console.log('  Verträge erfüllt   ', contractsDone);
+console.log('  Fundstücke         ', Object.values(game.state.collection).reduce((a, b) => a + b, 0));
+const quality = ['Schlecht', 'Normal', 'Gut', 'Hochwertig', 'Rein'][Math.min(4, Math.floor(game.stats.quality * 5))];
+console.log('  Materialqualität   ', quality);
 
 console.log('\nGDD-Prüfungen:');
 check('Erste 10 Minuten: mindestens 5 Entscheidungen', purchasesInFirstTen >= 5, `${purchasesInFirstTen} Käufe`);
@@ -225,6 +270,7 @@ check('Erste 30 Min ohne Stillstand > 5 Min', longestGap <= 300, `längste Pause
 check('Automatisierung erreicht', game.stats.teardownRate > 0, `${game.stats.teardownRate.toFixed(1)}/s`);
 check('Sichtbares Wachstum (>=6 Anlagen-Arten)', seen.size >= 6, `${seen.size} Arten`);
 check('Gelände wächst (mind. 1 Grundstück)', lots.length >= 1, `${lots.length} Grundstücke`);
+check('Wirtschaft: Verträge laufen', contractsDone >= 1, `${contractsDone} erfüllt`);
 
 function check(label, ok, detail) {
   console.log(`  ${ok ? '✅' : '❌'} ${label} — ${detail}`);

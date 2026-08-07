@@ -1,4 +1,5 @@
 import { Content } from '../../data';
+import { VEHICLE_CLASS_NAMES } from '../../data/vehicles';
 import { fmt, money } from '../../core/format';
 import type { VehicleDef } from '../../data/types';
 import type { Game } from '../../game/game';
@@ -41,9 +42,17 @@ export class MarketScreen implements Screen {
       this.root.appendChild(this.autoBuyPanel());
     }
 
-    this.root.appendChild(el('div', 'screen-title', 'Lieferungen'));
-    for (const def of Content.vehicles) {
-      this.root.appendChild(this.vehicleCard(def, queueFull));
+    // Grouped by quality class (GDD chapter 4), best first inside each class.
+    for (let cls = 1; cls <= VEHICLE_CLASS_NAMES.length; cls++) {
+      const list = Content.vehicles.filter((v) => v.vehicleClass === cls);
+      if (list.length === 0) continue;
+      // Hide classes the player is still far away from.
+      if (!list.some((v) => game.isUnlocked(v.id)) && cls > 1) {
+        const first = list[0];
+        if ((first.requires?.level ?? 1) > game.state.level + 6) continue;
+      }
+      this.root.appendChild(el('div', 'screen-title', `Stufe ${cls} · ${VEHICLE_CLASS_NAMES[cls - 1]}`));
+      for (const def of list) this.root.appendChild(this.vehicleCard(def, queueFull));
     }
   }
 

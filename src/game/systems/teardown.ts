@@ -66,8 +66,8 @@ function harvestPart(game: Game, vehicleId: string, partId: string): void {
     vehicleId,
     partId,
     cash: cash * game.stats.mult.sellPrice,
-    x: part.x,
-    y: part.y,
+    x: part.x ?? 0.5,
+    y: part.y ?? 0.5,
   });
   game.bus.emit('changed', undefined);
 }

@@ -9,7 +9,7 @@ import type { Screen } from '../screen';
 /** Forschung: permanent multipliers and unlocks, gated by the lab. */
 export class ResearchScreen implements Screen {
   readonly id = 'research';
-  readonly label = 'Forschung';
+  readonly label = 'Labor';
   readonly icon = '🔬';
   readonly root = el('div', 'screen');
 

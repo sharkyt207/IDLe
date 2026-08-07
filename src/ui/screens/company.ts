@@ -4,6 +4,7 @@ import { duration, fmt, money } from '../../core/format';
 import type { Game } from '../../game/game';
 import { nextPerkCost } from '../../game/stats';
 import { clearSave, exportSave, importSave } from '../../game/save';
+import { sellCollectible } from '../../economy/collection';
 import { clear, el } from '../dom';
 import { openModal } from '../modal';
 import type { Screen } from '../screen';
@@ -35,13 +36,14 @@ export class CompanyScreen implements Screen {
     grid.appendChild(stat(fmt(s.progressStats.vehiclesDone, 0), 'Fahrzeuge zerlegt'));
     grid.appendChild(stat(fmt(s.progressStats.taps, 0), 'Manuelle Tipps'));
     grid.appendChild(stat(duration(s.playtime), 'Spielzeit'));
-    grid.appendChild(stat(money(game.stats.companyValue), 'Firmenwert'));
+    grid.appendChild(stat(money(game.companyValue()), 'Firmenwert'));
     grid.appendChild(stat(`${fmt(game.stats.offlineHours, 0)} h`, 'Offline-Fortschritt'));
     root.appendChild(grid);
 
     this.renderPrestige();
     this.renderPerks();
     this.renderCollection();
+    this.renderFinds();
     this.renderSettings();
   }
 
@@ -158,6 +160,43 @@ export class CompanyScreen implements Screen {
     body.appendChild(el('div', 'card-desc', 'Jeder zerlegte Fahrzeugtyp wird dauerhaft freigeschaltet.'));
     box.appendChild(body);
     root.appendChild(box);
+  }
+
+  /** The display case of random finds (GDD chapter 4: Zufallsfunde). */
+  private renderFinds(): void {
+    const { game, root } = this;
+    const owned = Content.collectibles.filter((c) => (game.state.collection[c.id] ?? 0) > 0);
+    root.appendChild(
+      el('div', 'screen-title', `Fundstücke (${owned.length}/${Content.collectibles.length})`),
+    );
+    if (owned.length === 0) {
+      root.appendChild(
+        el('div', 'empty', 'Beim Zerlegen findet sich manchmal etwas Wertvolles. Noch nichts dabei.'),
+      );
+      return;
+    }
+    for (const item of owned) {
+      const count = game.state.collection[item.id] ?? 0;
+      const card = el('div', 'card');
+      card.appendChild(el('div', 'card-icon', item.icon));
+      const body = el('div', 'card-body');
+      const title = el('div', 'card-title');
+      title.appendChild(document.createTextNode(item.name));
+      title.appendChild(el('span', 'count', `×${count}`));
+      body.appendChild(title);
+      body.appendChild(el('div', 'card-desc', `Verkaufswert ${money(item.value * game.stats.mult.sellPrice)}`));
+      card.appendChild(body);
+
+      const actions = el('div', 'card-actions');
+      const sell = el('button', 'primary', 'Verkaufen');
+      sell.addEventListener('click', () => {
+        sellCollectible(game, item.id);
+        this.refresh();
+      });
+      actions.appendChild(sell);
+      card.appendChild(actions);
+      root.appendChild(card);
+    }
   }
 
   private renderSettings(): void {

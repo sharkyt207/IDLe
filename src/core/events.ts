@@ -18,6 +18,8 @@ export interface GameEvents {
   delivery: { vehicleId: string };
   /** A plot was bought; the map grows and the camera visits it. */
   lotBought: { lotId: string };
+  /** A collectible turned up while dismantling. */
+  found: { collectibleId: string };
 }
 
 type Handler<K extends keyof GameEvents> = (payload: GameEvents[K]) => void;

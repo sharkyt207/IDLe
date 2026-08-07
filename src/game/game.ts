@@ -8,6 +8,11 @@ import { runLogistics } from './systems/logistics';
 import { runProcessing } from './systems/processing';
 import { runAutoSell, sellUnits } from './systems/market';
 import { applyTeardownWork } from './systems/teardown';
+import { addToStorage } from '../economy/inventory';
+import { drift, isDisposal, unitPrice } from '../economy/market';
+import { addToCollection, rollFind } from '../economy/collection';
+import { companyValue, tickEconomy } from '../economy/manager';
+import { reservedMaterials } from '../economy/contracts';
 
 /**
  * The game orchestrator. Owns the state, the derived stats and the fixed-step
@@ -56,18 +61,25 @@ export class Game {
    * identical before and after a reload.
    */
   marketFactor(materialId: string): number {
-    let hash = 0;
-    for (let i = 0; i < materialId.length; i++) hash = (hash * 31 + materialId.charCodeAt(i)) % 1000;
-    const phase = (hash / 1000) * Math.PI * 2;
-    const t = (this.state.playtime / BALANCE.market.cycleSeconds) * Math.PI * 2;
-    return 1 + BALANCE.market.amplitude * Math.sin(t + phase);
+    return drift(materialId, this.state.playtime);
   }
 
-  /** Current sell price for one unit, multipliers and drift included. */
+  /**
+   * Current price for one unit: market drift, pile quality and multipliers.
+   * Negative for hazardous material that still has to be disposed of.
+   */
   sellPrice(materialId: string): number {
-    const def = Content.material(materialId);
-    if (!def) return 0;
-    return def.basePrice * this.marketFactor(materialId) * this.stats.mult.sellPrice;
+    return unitPrice(this.state, this.stats, materialId);
+  }
+
+  /** True while this material costs money to get rid of. */
+  isDisposal(materialId: string): boolean {
+    return isDisposal(materialId, this.stats);
+  }
+
+  /** Firmenwert: assets, stock, staff, research and collection. */
+  companyValue(): number {
+    return companyValue(this);
   }
 
   /** Current purchase price of a delivery. */
@@ -130,15 +142,20 @@ export class Game {
     if (amount <= 0) return;
     const free = this.storageFree();
     const fits = Math.min(amount, free);
-    if (fits > 0) this.state.storage[materialId] = (this.state.storage[materialId] ?? 0) + fits;
+    if (fits > 0) addToStorage(this.state, materialId, fits, this.rollQuality());
 
     const overflow = amount - fits;
     if (overflow <= 0) return;
 
     const value = overflow * this.sellPrice(materialId) * BALANCE.overflowPriceFactor;
-    this.addMoney(value);
-    this.addXp(value * BALANCE.xpPerEuroSold);
-    this.bus.emit('sold', { amount: value, auto: true });
+    if (value > 0) {
+      this.addMoney(value);
+      this.addXp(value * BALANCE.xpPerEuroSold);
+      this.bus.emit('sold', { amount: value, auto: true });
+    } else {
+      // Hazardous overflow is disposed of at the player's expense.
+      this.state.money = Math.max(0, this.state.money + value);
+    }
     this.noticeStorageFull();
   }
 
@@ -151,6 +168,12 @@ export class Game {
       icon: '📦',
       tone: 'warn',
     });
+  }
+
+  /** Quality of freshly produced material - the machines' average, jittered. */
+  rollQuality(): number {
+    const jitter = (Math.random() - 0.5) * 0.12;
+    return Math.max(0, Math.min(1, this.stats.quality + jitter));
   }
 
   addXp(amount: number): void {
@@ -244,6 +267,13 @@ export class Game {
       }
     }
 
+    const find = rollFind(this, def.vehicleClass);
+    if (find) {
+      addToCollection(this, find.id);
+      this.bus.emit('notice', { text: `Fundstück: ${find.name}`, icon: find.icon, tone: 'good' });
+      this.bus.emit('found', { collectibleId: find.id });
+    }
+
     this.addXp(def.xp);
     this.bus.emit('vehicleDone', { vehicleId: def.id, xp: def.xp });
     this.loadNextFromQueue();
@@ -262,11 +292,12 @@ export class Game {
     return value;
   }
 
-  /** Sells everything that is not locked for processing. */
+  /** Sells everything that is neither locked nor promised to a customer. */
   sellAll(): number {
+    const reserved = reservedMaterials(this);
     let total = 0;
     for (const id of Object.keys({ ...this.state.storage })) {
-      if (this.state.autoSellLocked[id]) continue;
+      if (this.state.autoSellLocked[id] || reserved.has(id)) continue;
       total += this.sellMaterial(id);
     }
     if (total > 0) {
@@ -404,6 +435,7 @@ export class Game {
 
     runProcessing(this, dt, efficiency);
     runAutoSell(this, dt, efficiency);
+    tickEconomy(this, dt, efficiency);
   }
 
   /** Random yield roll for one part. Exposed for the teardown system. */

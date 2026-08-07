@@ -9,3 +9,6 @@ export { Content } from './data';
 export { BALANCE } from './data/balance';
 export { xpForLevel } from './game/state';
 export { nextCost } from './game/stats';
+export { acceptOffer, deliver, canAccept } from './economy/contracts';
+export { companyValue } from './economy/manager';
+export { vehicleValue } from './data/vehicles';

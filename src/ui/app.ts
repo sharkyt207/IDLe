@@ -14,6 +14,7 @@ import { CompanyScreen } from './screens/company';
 import { MarketScreen } from './screens/market';
 import { ResearchScreen } from './screens/research';
 import { StorageScreen } from './screens/storage';
+import { TradeScreen } from './screens/trade';
 import { YardScreen } from './screens/yard';
 
 const STEP = 1 / BALANCE.tickRate;
@@ -77,6 +78,7 @@ export class App {
       this.yard,
       new MarketScreen(game),
       new StorageScreen(game),
+      new TradeScreen(game),
       new BuildScreen(game),
       new ResearchScreen(game),
       company,
