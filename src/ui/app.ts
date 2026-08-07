@@ -1,18 +1,24 @@
 import { BALANCE } from '../data/balance';
-import { duration, fmt, money, units } from '../core/format';
+import { UI } from '../data/ui';
+import { duration, fmt, money } from '../core/format';
 import type { Game } from '../game/game';
 import { saveGame } from '../game/save';
 import { simulateOffline, type OfflineReport } from '../game/systems/offline';
-import { xpForLevel } from '../game/state';
+import { SoundSystem } from '../audio/sound';
+import { applyTheme } from './theme';
+import { dialog, statGrid, statTile, attachPress } from './components';
+import { Hud } from './hud';
 import { clear, el } from './dom';
-import { openModal } from './modal';
 import type { Screen } from './screen';
 import { Toasts } from './toast';
 import { Tutorial } from './tutorial';
 import { BuildScreen } from './screens/build';
-import { CompanyScreen } from './screens/company';
+import { HubScreen } from './screens/hub';
 import { MarketScreen } from './screens/market';
 import { ResearchScreen } from './screens/research';
+import { SettingsScreen } from './screens/settings';
+import { StaffScreen } from './screens/staff';
+import { StatisticsScreen } from './screens/statistics';
 import { StorageScreen } from './screens/storage';
 import { TradeScreen } from './screens/trade';
 import { YardScreen } from './screens/yard';
@@ -20,8 +26,12 @@ import { YardScreen } from './screens/yard';
 const STEP = 1 / BALANCE.tickRate;
 
 /**
- * Application shell: top bar, screen stack, tab bar, game loop, autosave and
- * offline handling. Screens stay dumb - the shell decides when they refresh.
+ * Application shell (GDD chapter 8).
+ *
+ * Six main areas in the bottom bar - Schrottplatz, Markt, Forschung,
+ * Mitarbeiter, Statistik, Einstellungen - with hubs behind the two that cover
+ * several surfaces. The HUD, the theme and the sound system all live here so
+ * screens stay dumb: they render, the shell decides when.
  */
 export class App {
   private root: HTMLElement;
@@ -29,19 +39,15 @@ export class App {
   private tabbar = el('nav', 'tabbar');
   private toasts: Toasts;
   private tutorial: Tutorial;
+  private hud: Hud;
+  private sound: SoundSystem;
 
   private screens: Screen[] = [];
   private yard: YardScreen;
   private activeId = 'yard';
 
-  // top bar nodes
-  private moneyNode = el('div', 'money');
-  private rateNode = el('div', 'rate');
-  private levelNode = el('span', 'level-chip');
-  private xpFill = el('i');
-  private storageFill = el('i');
-  private storageBar = el('div', 'storage-bar');
-  private storageText = el('span');
+  /** Signature of the last tab bar build - see `buildTabs`. */
+  private tabSignature = '';
 
   private accumulator = 0;
   private lastFrame = 0;
@@ -49,18 +55,23 @@ export class App {
   private saveTimer = 0;
   private hiddenAt = 0;
 
-  /** Smoothed income for the "€/s" readout. */
-  private incomeEma = 0;
-  private lastEarned = 0;
-  private earnSampleTimer = 0;
-
-  constructor(private game: Game, mount: HTMLElement) {
+  constructor(
+    private game: Game,
+    mount: HTMLElement,
+  ) {
     this.root = mount;
     clear(this.root);
 
-    this.root.appendChild(this.buildTopbar());
+    applyTheme(game.state.settings);
+    this.sound = new SoundSystem(game.state.settings);
+
+    this.hud = new Hud(game);
+    this.root.appendChild(this.hud.top);
+
     this.screensHost.id = 'screen';
     this.root.appendChild(this.screensHost);
+    this.root.appendChild(this.hud.left);
+    this.root.appendChild(this.hud.right);
     this.root.appendChild(this.tabbar);
 
     this.toasts = new Toasts(document.body);
@@ -68,20 +79,29 @@ export class App {
     document.body.appendChild(this.tutorial.root);
 
     this.yard = new YardScreen(game);
-    const company = new CompanyScreen(game);
-    company.onReset = () => {
+    this.yard.sound = this.sound;
+
+    const stats = new StatisticsScreen(game);
+    const settings = new SettingsScreen(game, this.sound);
+    const reset = () => {
       this.select('yard');
       this.refreshAll();
     };
+    stats.onReset = reset;
+    settings.onReset = reset;
 
+    // The six main areas from the GDD. Two of them are hubs.
     this.screens = [
-      this.yard,
-      new MarketScreen(game),
-      new StorageScreen(game),
-      new TradeScreen(game),
-      new BuildScreen(game),
+      new HubScreen('yard', 'Schrottplatz', '🏗️', [this.yard, new BuildScreen(game)]),
+      new HubScreen('market', 'Markt', '🛒', [
+        new MarketScreen(game),
+        new StorageScreen(game),
+        new TradeScreen(game),
+      ]),
       new ResearchScreen(game),
-      company,
+      new StaffScreen(game),
+      stats,
+      settings,
     ];
     for (const screen of this.screens) {
       screen.root.style.display = 'none';
@@ -90,11 +110,12 @@ export class App {
 
     this.buildTabs();
     this.bindEvents();
-    this.lastEarned = game.state.lifetimeEarned;
 
     // Dev handle for automated playtests of the world systems.
     if (import.meta.env.DEV) {
-      (window as unknown as Record<string, unknown>).yard = this.yard.renderer;
+      const debug = window as unknown as Record<string, unknown>;
+      debug.yard = this.yard.renderer;
+      debug.app = this;
     }
 
     this.select('yard');
@@ -106,39 +127,33 @@ export class App {
   // Chrome
   // -------------------------------------------------------------------------
 
-  private buildTopbar(): HTMLElement {
-    const bar = el('header', 'topbar');
-
-    const row = el('div', 'topbar-row');
-    row.appendChild(this.moneyNode);
-    row.appendChild(this.levelNode);
-    row.appendChild(this.rateNode);
-    bar.appendChild(row);
-
-    const xp = el('div', 'xp-bar');
-    xp.appendChild(this.xpFill);
-    bar.appendChild(xp);
-
-    const storageLine = el('div', 'storage-line');
-    storageLine.appendChild(el('span', undefined, '📦'));
-    this.storageBar.appendChild(this.storageFill);
-    storageLine.appendChild(this.storageBar);
-    storageLine.appendChild(this.storageText);
-    bar.appendChild(storageLine);
-
-    return bar;
-  }
-
+  /**
+   * Rebuilds the bottom bar only when it would actually look different.
+   *
+   * It used to be rebuilt on every progress event, which replaces the button
+   * under the player's finger several times a second - on a real device that
+   * shows up as taps that do not register.
+   */
   private buildTabs(): void {
+    const visible = this.screens.filter((s) => !s.available || s.available());
+    const signature = visible
+      .map((s) => `${s.id}:${s.id === this.activeId ? 1 : 0}:${s.hasNews?.() ? 1 : 0}`)
+      .join('|');
+    if (signature === this.tabSignature) return;
+    this.tabSignature = signature;
+
     clear(this.tabbar);
     for (const screen of this.screens) {
       if (screen.available && !screen.available()) continue;
       const tab = el('button', `tab${screen.id === this.activeId ? ' active' : ''}`);
       tab.dataset.id = screen.id;
       tab.appendChild(el('span', 'tab-icon', screen.icon));
-      tab.appendChild(el('span', undefined, screen.label));
+      tab.appendChild(el('span', 'tab-label', screen.label));
       if (screen.hasNews?.()) tab.appendChild(el('span', 'badge'));
-      tab.addEventListener('click', () => this.select(screen.id));
+      attachPress(tab, () => {
+        this.sound.play('tap');
+        this.select(screen.id);
+      });
       this.tabbar.appendChild(tab);
     }
   }
@@ -146,18 +161,34 @@ export class App {
   private bindEvents(): void {
     const { bus } = this.game;
 
-    bus.on('notice', ({ text, icon, tone }) => this.toasts.show(text, icon, tone));
+    bus.on('notice', ({ text, icon, tone }) => {
+      this.toasts.show(text, icon, tone);
+      if (tone === 'warn') this.sound.play('error');
+      else if (tone === 'good') this.sound.play('confirm');
+    });
 
     bus.on('levelUp', ({ level }) => {
       this.toasts.show(`Level ${level} erreicht!`, '⭐', 'good');
+      this.sound.play('levelUp');
       this.buildTabs();
       this.refreshActive();
+    });
+
+    bus.on('sold', ({ amount, auto }) => {
+      if (!auto && amount > 0) this.sound.play('sell');
     });
 
     bus.on('progress', () => {
       this.tutorial.update();
       this.buildTabs();
     });
+
+    // Browsers block audio until a gesture; this is that gesture.
+    const unlock = () => {
+      this.sound.unlock();
+      window.removeEventListener('pointerdown', unlock);
+    };
+    window.addEventListener('pointerdown', unlock);
 
     window.addEventListener('resize', () => this.yard.resize());
     window.addEventListener('orientationchange', () => setTimeout(() => this.yard.resize(), 220));
@@ -188,14 +219,30 @@ export class App {
   // Navigation & refresh
   // -------------------------------------------------------------------------
 
+  /**
+   * @param id a main area, or a sub-screen id - the shell finds the hub that
+   *   owns it, so the tutorial can point at "storage" without knowing about
+   *   the Markt hub.
+   */
   select(id: string): void {
-    const target = this.screens.find((s) => s.id === id) ?? this.screens[0];
+    let target = this.screens.find((s) => s.id === id);
+    let child: string | undefined;
+    if (!target) {
+      target = this.screens.find((s) => s instanceof HubScreen && s.owns(id));
+      child = id;
+    }
+    target ??= this.screens[0];
+
     if (this.activeId !== target.id) {
       const previous = this.screens.find((s) => s.id === this.activeId);
       previous?.onLeave?.();
-      previous && (previous.root.style.display = 'none');
+      if (previous) previous.root.style.display = 'none';
     }
     this.activeId = target.id;
+    // A hub can share its id with one of its sub-screens (Schrottplatz/Hof,
+    // Markt/Ankauf). Passing the id through means selecting the area also
+    // brings that sub-screen forward, instead of leaving whatever was open.
+    if (target instanceof HubScreen) target.show(child ?? id);
     target.root.style.display = '';
     target.onEnter?.();
     target.refresh();
@@ -204,6 +251,12 @@ export class App {
 
   private get activeScreen(): Screen | undefined {
     return this.screens.find((s) => s.id === this.activeId);
+  }
+
+  /** True while the isometric world is the visible surface. */
+  private get yardVisible(): boolean {
+    const active = this.activeScreen;
+    return active instanceof HubScreen && active.active === this.yard;
   }
 
   /** Rebuilds the visible screen while keeping the scroll position. */
@@ -216,26 +269,12 @@ export class App {
   }
 
   refreshAll(): void {
+    applyTheme(this.game.state.settings);
+    this.sound.update(this.game.state.settings);
     this.buildTabs();
     this.refreshActive();
-    this.updateTopbar();
+    this.hud.refresh();
     this.tutorial.update();
-  }
-
-  private updateTopbar(): void {
-    const { state, stats } = this.game;
-    this.moneyNode.textContent = money(state.money);
-    this.levelNode.textContent = `Lv ${state.level}`;
-    this.rateNode.textContent = `${money(this.incomeEma)}/s`;
-
-    const need = xpForLevel(state.level);
-    this.xpFill.style.width = `${Math.min(100, (state.xp / need) * 100)}%`;
-
-    const used = this.game.storageUsed();
-    const ratio = stats.storage > 0 ? used / stats.storage : 0;
-    this.storageFill.style.width = `${Math.min(100, ratio * 100)}%`;
-    this.storageBar.classList.toggle('full', ratio >= 0.999);
-    this.storageText.textContent = `${units(used)}/${units(stats.storage)}`;
   }
 
   // -------------------------------------------------------------------------
@@ -255,23 +294,16 @@ export class App {
       steps++;
     }
 
-    // Income readout (exponential moving average over ~3 s).
-    this.earnSampleTimer += dt;
-    if (this.earnSampleTimer >= 0.5) {
-      const earned = this.game.state.lifetimeEarned - this.lastEarned;
-      this.lastEarned = this.game.state.lifetimeEarned;
-      const perSecond = earned / this.earnSampleTimer;
-      this.incomeEma += (perSecond - this.incomeEma) * 0.35;
-      this.earnSampleTimer = 0;
-    }
-
-    if (this.activeId === 'yard') this.yard.draw(dt);
+    this.hud.sample(dt);
+    const yardVisible = this.yardVisible;
+    this.root.classList.toggle('world', yardVisible);
+    if (yardVisible) this.yard.draw(dt);
 
     this.uiTimer += dt;
     if (this.uiTimer >= 0.25) {
       this.uiTimer = 0;
-      this.updateTopbar();
-      if (this.activeId === 'yard') this.yard.refresh();
+      this.hud.refresh();
+      if (yardVisible) this.yard.refresh();
       else this.refreshActive();
     }
 
@@ -290,22 +322,23 @@ export class App {
 
   showOfflineReport(report: OfflineReport): void {
     const content = el('div');
-    const grid = el('div', 'stat-grid');
-    grid.appendChild(statBox(money(report.moneyGained), 'Verdient'));
-    grid.appendChild(statBox(fmt(report.vehiclesDone, 0), 'Fahrzeuge'));
-    grid.appendChild(statBox(duration(report.seconds), 'Angerechnet'));
-    grid.appendChild(statBox(`${Math.round(report.efficiency * 100)} %`, 'Effizienz'));
-    content.appendChild(grid);
+    content.appendChild(
+      statGrid(
+        statTile(money(report.moneyGained), 'Verdient', 'good'),
+        statTile(fmt(report.vehiclesDone, 0), 'Fahrzeuge'),
+        statTile(duration(report.seconds), 'Angerechnet'),
+        statTile(`${Math.round(report.efficiency * 100)} %`, 'Effizienz'),
+      ),
+    );
 
     if (report.capped) {
       const note = el('p');
       note.textContent = `Du warst ${duration(
         report.awaySeconds,
-      )} weg. Mehr Offline-Zeit gibt es über Schichtleiter, Nachtschicht-Forschung und Fernüberwachung.`;
+      )} weg. Mehr Offline-Zeit gibt es über Schichtleiter, Fernüberwachung und die Autonome Fabrik.`;
       content.appendChild(note);
     }
 
-    // Without logistics and sorting the yard stops as soon as the pad is empty.
     const { stats, state } = this.game;
     if (stats.autoBuyPerMinute <= 0 || !state.autoBuyEnabled || stats.autoSellPerSec <= 0) {
       const hint = el('p');
@@ -314,17 +347,13 @@ export class App {
       content.appendChild(hint);
     }
 
-    openModal({
+    dialog({
       title: 'Willkommen zurück!',
+      icon: '🌅',
       body: 'Deine Anlagen haben weitergearbeitet.',
       content,
     });
   }
 }
 
-function statBox(value: string, label: string): HTMLElement {
-  const box = el('div', 'stat');
-  box.appendChild(el('b', undefined, value));
-  box.appendChild(el('span', undefined, label));
-  return box;
-}
+export { UI as UI_TOKENS };

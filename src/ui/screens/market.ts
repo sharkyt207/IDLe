@@ -4,16 +4,10 @@ import { fmt, money } from '../../core/format';
 import type { VehicleDef } from '../../data/types';
 import type { Game } from '../../game/game';
 import { requirementText } from '../../game/stats';
+import { RARITY_COLOR } from '../../data/ui';
+import { rarityBadge } from '../components';
 import { clear, el } from '../dom';
 import type { Screen } from '../screen';
-
-const RARITY_LABEL: Record<string, string> = {
-  common: 'Gewöhnlich',
-  uncommon: 'Selten',
-  rare: 'Rar',
-  epic: 'Episch',
-  legendary: 'Legendär',
-};
 
 /** Ankauf: order deliveries and pick what the automation should buy. */
 export class MarketScreen implements Screen {
@@ -109,7 +103,9 @@ export class MarketScreen implements Screen {
     const body = el('div', 'card-body');
     const title = el('div', 'card-title');
     title.appendChild(document.createTextNode(def.name));
-    title.appendChild(el('span', 'count', RARITY_LABEL[def.rarity] ?? def.rarity));
+    // The same rarity colours as machines, materials and finds (chapter 8).
+    title.appendChild(rarityBadge(def.rarity));
+    card.style.setProperty('--card-accent', RARITY_COLOR[def.rarity]);
     body.appendChild(title);
 
     const totalWork = def.parts.reduce((sum, p) => sum + p.work, 0);

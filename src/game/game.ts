@@ -366,6 +366,7 @@ export class Game {
     this.state.owned[id] = owned(this.state, id) + 1;
     this.recompute();
     if (def.category === 'lot') this.bus.emit('lotBought', { lotId: def.id });
+    if (def.building) this.bus.emit('built', { defId: def.id });
     this.bus.emit('notice', { text: `${def.name} gekauft`, icon: def.icon, tone: 'good' });
     this.bus.emit('progress', undefined);
     return true;

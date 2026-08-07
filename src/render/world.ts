@@ -6,6 +6,7 @@ import { EnvironmentSystem, type Ambience } from '../world/environment';
 import { LogisticsSystem } from '../world/logistics';
 import { MapSystem, ZONE_COLOR } from '../world/map';
 import { TrafficSystem, poseAlong, type RoadVehicle } from '../world/traffic';
+import { activeTheme } from '../ui/theme';
 import {
   LEVEL_H,
   TILE_H,
@@ -57,6 +58,8 @@ export class WorldRenderer {
 
   onTapPart?: (partId: string) => void;
   onTapStructure?: (structure: Structure) => void;
+  /** Long press: show details without changing anything (GDD chapter 8). */
+  onInspect?: (structure: Structure) => void;
   onPlaced?: () => void;
   onTapGround?: () => void;
 
@@ -64,6 +67,9 @@ export class WorldRenderer {
   private dragStart: { x: number; y: number; time: number } | null = null;
   private dragged = false;
   private pinchDistance = 0;
+  /** Timestamp and position of the previous tap, for double-tap detection. */
+  private lastTap = { time: 0, x: 0, y: 0 };
+  private holdTimer: number | undefined;
 
   /** Reused each frame to avoid per-frame allocation churn. */
   private drawables: Drawable[] = [];
@@ -108,6 +114,23 @@ export class WorldRenderer {
     this.camera.focus(c.x, c.y);
   }
 
+  /** World-pixel centre of a structure - used to place dust and effects. */
+  structureCenter(structure: Structure): Point {
+    return tileToWorld(structure.tx + structure.size / 2, structure.ty + structure.size / 2);
+  }
+
+  /** Double tap: glide the camera onto whatever sits under the finger. */
+  centerOnScreen(screenX: number, screenY: number): void {
+    const world = this.camera.screenToWorld(screenX, screenY);
+    const structure = this.hitTestStructure(world.x, world.y);
+    if (structure) {
+      const c = tileToWorld(structure.tx + structure.size / 2, structure.ty + structure.size / 2);
+      this.camera.focus(c.x, c.y);
+      return;
+    }
+    this.camera.focus(world.x, world.y);
+  }
+
   /** Frames a freshly bought plot so the purchase is immediately visible. */
   focusLot(lotId: string): void {
     const c = this.map.lotCenter(lotId);
@@ -124,8 +147,23 @@ export class WorldRenderer {
       if (this.pointers.size === 1) {
         this.dragStart = { x: e.clientX, y: e.clientY, time: performance.now() };
         this.dragged = false;
+        // Hold to inspect. Fires on its own so the finger can stay down.
+        const rect = el.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        window.clearTimeout(this.holdTimer);
+        this.holdTimer = window.setTimeout(() => {
+          if (this.dragged || this.movingKey) return;
+          const world = this.camera.screenToWorld(x, y);
+          const structure = this.hitTestStructure(world.x, world.y);
+          if (structure) {
+            this.dragged = true; // swallow the tap that would follow
+            this.onInspect?.(structure);
+          }
+        }, 420);
       } else if (this.pointers.size === 2) {
         this.pinchDistance = this.currentPinchDistance();
+        window.clearTimeout(this.holdTimer);
       }
     });
 
@@ -141,7 +179,10 @@ export class WorldRenderer {
           this.camera.panBy(dx, dy);
           if (this.dragStart) {
             const total = Math.hypot(e.clientX - this.dragStart.x, e.clientY - this.dragStart.y);
-            if (total > 10) this.dragged = true;
+            if (total > 10) {
+              this.dragged = true;
+              window.clearTimeout(this.holdTimer);
+            }
           }
         }
       } else if (this.pointers.size === 2) {
@@ -163,13 +204,27 @@ export class WorldRenderer {
     const end = (e: PointerEvent) => {
       const wasSingle = this.pointers.size === 1;
       this.pointers.delete(e.pointerId);
+      window.clearTimeout(this.holdTimer);
       if (this.pointers.size < 2) this.pinchDistance = 0;
       if (!wasSingle || !this.dragStart) return;
       const heldMs = performance.now() - this.dragStart.time;
       this.dragStart = null;
       if (this.dragged || heldMs > 600) return;
+
       const rect = this.canvas.getBoundingClientRect();
-      this.handleTap(e.clientX - rect.left, e.clientY - rect.top);
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      // Double tap centres the camera on whatever was hit (GDD chapter 8).
+      const now = performance.now();
+      const near = Math.hypot(x - this.lastTap.x, y - this.lastTap.y) < 34;
+      if (now - this.lastTap.time < 320 && near) {
+        this.lastTap = { time: 0, x, y };
+        this.centerOnScreen(x, y);
+        return;
+      }
+      this.lastTap = { time: now, x, y };
+      this.handleTap(x, y);
     };
     el.addEventListener('pointerup', end);
     el.addEventListener('pointercancel', (e) => {
@@ -363,6 +418,18 @@ export class WorldRenderer {
       ctx.globalCompositeOperation = 'source-over';
       ctx.globalAlpha = 1;
     }
+    // Theme tint (GDD chapter 8): night is cooler and darker, winter is pale.
+    // One screen-space composite, so a theme costs nothing per object.
+    const theme = activeTheme();
+    if (theme.world.tintStrength > 0) {
+      ctx.globalAlpha = theme.world.tintStrength;
+      ctx.fillStyle = theme.world.tint;
+      ctx.globalCompositeOperation = theme.id === 'night' ? 'multiply' : 'soft-light';
+      ctx.fillRect(0, 0, this.viewW, this.viewH);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
+
     this.environment.drawWeather(ctx, ambience, this.viewW, this.viewH, dt);
   }
 

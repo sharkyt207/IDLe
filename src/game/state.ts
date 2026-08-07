@@ -1,4 +1,5 @@
 import { BALANCE } from '../data/balance';
+import { UI } from '../data/ui';
 
 /** One part of the vehicle currently on the dismantling pad. */
 export interface ActivePart {
@@ -151,7 +152,23 @@ export interface GameState {
     arrears: number;
   };
 
-  settings: { haptics: boolean };
+  /** Presentation and accessibility (GDD chapter 8). */
+  settings: {
+    haptics: boolean;
+    /** Theme id from `data/ui.ts`: standard, night, winter. */
+    theme: string;
+    /** Interface scale, 0.8…1.5. */
+    uiScale: number;
+    colorblind: boolean;
+    /** Fewer particles and no spring animations - accessibility *and* perf. */
+    reducedEffects: boolean;
+    /** Moves the primary actions to the left of the screen. */
+    leftHanded: boolean;
+    sound: boolean;
+    volumeMusic: number;
+    volumeEffects: number;
+    volumeUi: number;
+  };
 }
 
 /** Long-term storage strategy for one material. */
@@ -195,7 +212,7 @@ export interface AuctionState {
   aiMax: number;
 }
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export function createInitialState(
   carryPrestige?: GameState['prestige'],
@@ -255,7 +272,18 @@ export function createInitialState(
 
     metrics: { dayTime: 0, dayEarned: 0, daySpent: 0, dayHistory: [], unitsRecycled: 0, arrears: 0 },
 
-    settings: { haptics: true },
+    settings: {
+      haptics: true,
+      theme: 'standard',
+      uiScale: UI.scale.default,
+      colorblind: false,
+      reducedEffects: false,
+      leftHanded: false,
+      sound: true,
+      volumeMusic: UI.volume.music,
+      volumeEffects: UI.volume.effects,
+      volumeUi: UI.volume.ui,
+    },
   };
 }
 

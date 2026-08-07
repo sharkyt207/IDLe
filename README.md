@@ -8,8 +8,9 @@ Umsetzung von [GDD Kapitel 1 (Vision)](docs/gdd/01-vision.md),
 [Kapitel 3 (Spielwelt)](docs/gdd/03-world.md),
 [Kapitel 4 (Wirtschaft)](docs/gdd/04-economy.md),
 [Kapitel 5 (Maschinen)](docs/gdd/05-machines.md),
-[Kapitel 6 (Unternehmen)](docs/gdd/06-company.md) und
-[Kapitel 7 (Forschung & Prestige)](docs/gdd/07-research-prestige.md).
+[Kapitel 6 (Unternehmen)](docs/gdd/06-company.md),
+[Kapitel 7 (Forschung & Prestige)](docs/gdd/07-research-prestige.md) und
+[Kapitel 8 (UI, UX & Art Direction)](docs/gdd/08-ui-ux.md).
 
 ## Loslegen
 
@@ -86,14 +87,31 @@ Nachtbeleuchtung, sechs Wetterlagen und frei platzierbare Dekoration.
 **Offline-Fortschritt** mit Rückkehr-Report, gedeckelt und über Mitarbeiter, Forschung und
 Prestige-Boni erweiterbar.
 
-**Bedienung** vollständig per Touch: Tippen zum Zerlegen, Ziehen zum Scrollen, Pinch zum Zoomen.
-Die Kamera bleibt jederzeit unter Kontrolle des Spielers.
+**Oberfläche aus einem Guss** — ein Designsystem aus neun Komponenten trägt jeden Screen, jede
+Farbe hat überall dieselbe Bedeutung (Blau Information, Orange Maschinen, Grün Geld, Gelb
+Forschung, Rot Fehler), und Seltenheit ist von Normal bis **Mythisch** durchgefärbt. Sechs
+Hauptbereiche: Schrottplatz, Markt, Forschung, Mitarbeiter, Statistik, Einstellungen. Ein HUD
+zeigt oben Geld, Firmenwert, Industrie- und Forschungspunkte, links was gerade läuft, rechts
+was klemmt.
+
+**Drei Themes** (Standard, Nachtmodus, Winter) — ein Theme ist eine Zahlentabelle, kein zweites
+Stylesheet.
+
+**Ton ohne ein einziges Asset**: Maschinen, Hydraulik, Funken, Motoren und ein ruhiges
+Klangbett werden zur Laufzeit synthetisiert.
+
+**Barrierefreiheit**: Oberflächengröße 80–150 %, Farbenblind-Modus, reduzierte Effekte,
+Vibration, getrennte Lautstärken und ein Linkshänder-Modus.
+
+**Bedienung** vollständig per Touch: Tippen zum Auswählen, Gedrückt halten für Informationen,
+Ziehen zum Scrollen, Pinch zum Zoomen, Doppeltippen zentriert die Kamera. Die Kamera bleibt
+jederzeit unter Kontrolle des Spielers.
 
 ## Technik
 
-TypeScript + Vite, **keine Laufzeit-Abhängigkeiten**. Oberfläche als DOM, die Spielwelt als
-isometrisches Canvas aus Vektorformen — dadurch ≈ 50 kB gzip und flüssiger Betrieb auf
-Mittelklasse-Geräten. Gezeichnet wird nur, was im Bild ist; Animationen pausieren, sobald der
+TypeScript + Vite, **keine Laufzeit-Abhängigkeiten und keine Assets**. Oberfläche als DOM, die
+Spielwelt als isometrisches Canvas aus Vektorformen, der Ton aus Oszillatoren — dadurch ≈ 78 kB
+gzip insgesamt und flüssiger Betrieb auf Mittelklasse-Geräten. Gezeichnet wird nur, was im Bild ist; Animationen pausieren, sobald der
 Hof nicht der aktive Screen ist.
 
 Alle Spielwerte liegen in `src/data/`. Neue Fahrzeuge, Maschinen, Mitarbeiter, Gebäude, Rezepte,
@@ -104,8 +122,8 @@ Speicherstände sind versioniert, werden beim Laden saniert und überstehen Inha
 
 ## Stand
 
-Spielbarer Prototyp. Die Kapitel 1 bis 7 des GDD sind umgesetzt; Kapitel 8 ff. sind noch offen.
+Spielbarer Prototyp. Die Kapitel 1 bis 8 des GDD sind umgesetzt; Kapitel 9 ff. sind noch offen.
 
-Bewusst noch nicht enthalten: **Ton**. Das GDD nennt Metallgeräusche als Feedback — der Prototyp
-liefert stattdessen Partikel, schwebende Beträge, Fortschrittsbalken und optionale Vibration.
-Audio braucht Assets und eine eigene Ladestrategie und wartet auf echte Sounds.
+Bewusst noch offen: **echte Grafik- und Audio-Assets**. Modelle sind Vektorformen, Symbole sind
+Emoji, Geräusche sind synthetisiert. Beides ist so gebaut, dass professionelle Assets die
+jeweilige Tabelle ersetzen können, ohne dass Spielcode sich ändert.

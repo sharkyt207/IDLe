@@ -1,4 +1,6 @@
 import { Content } from '../data';
+import { THEMES, UI } from '../data/ui';
+import { clampScale } from '../ui/theme';
 import { createInitialState, SAVE_VERSION, type GameState } from './state';
 
 const KEY = 'scrap-empire.save';
@@ -42,6 +44,13 @@ const MIGRATIONS: Record<number, Migration> = {
       achievements: [],
     };
   },
+
+  /**
+   * 2 -> 3 (GDD chapter 8): the settings block grew from one toggle to the
+   * full presentation and accessibility set. `sanitize` fills the defaults, so
+   * this only has to carry the version forward.
+   */
+  2: (raw) => ({ ...raw, version: 3 }),
 };
 
 /**
@@ -296,7 +305,19 @@ function sanitize(raw: Record<string, unknown>): GameState {
     ),
   };
 
-  state.settings = { haptics: bool(src.settings?.haptics, true) };
+  const volume = (value: unknown, fallback: number) => Math.max(0, Math.min(1, num(value, fallback)));
+  state.settings = {
+    haptics: bool(src.settings?.haptics, true),
+    theme: THEMES.some((t) => t.id === src.settings?.theme) ? String(src.settings?.theme) : 'standard',
+    uiScale: clampScale(num(src.settings?.uiScale, UI.scale.default)),
+    colorblind: bool(src.settings?.colorblind, false),
+    reducedEffects: bool(src.settings?.reducedEffects, false),
+    leftHanded: bool(src.settings?.leftHanded, false),
+    sound: bool(src.settings?.sound, true),
+    volumeMusic: volume(src.settings?.volumeMusic, UI.volume.music),
+    volumeEffects: volume(src.settings?.volumeEffects, UI.volume.effects),
+    volumeUi: volume(src.settings?.volumeUi, UI.volume.ui),
+  };
 
   state.version = SAVE_VERSION;
   return state;

@@ -3,6 +3,9 @@ import { money, rate } from '../../core/format';
 import type { Game } from '../../game/game';
 import { WorldRenderer } from '../../render/world';
 import type { Structure } from '../../world/buildings';
+import type { SoundSystem } from '../../audio/sound';
+import { openDetails } from '../details';
+import { particleScale } from '../theme';
 import { el, haptic } from '../dom';
 import type { Screen } from '../screen';
 
@@ -24,6 +27,8 @@ export class YardScreen implements Screen {
   private moveBar = el('div', 'move-bar');
   /** True while this screen is the visible one - gates all animation. */
   private visible = false;
+  /** Set by the shell. Machine noises come from here (GDD chapter 8). */
+  sound?: SoundSystem;
 
   constructor(private game: Game) {
     const wrap = el('div', 'yard');
@@ -51,6 +56,8 @@ export class YardScreen implements Screen {
     this.renderer = new WorldRenderer(this.canvas, game);
     this.renderer.onTapPart = (partId) => this.tapPart(partId);
     this.renderer.onTapStructure = (s) => this.showStructure(s);
+    // Hold to inspect, tap to relocate - the GDD's two gestures, kept apart.
+    this.renderer.onInspect = (s) => openDetails(game, s.defId, () => this.refresh());
     this.renderer.onPlaced = () => this.endMove('Anlage versetzt');
 
     this.bindEvents();
@@ -60,6 +67,7 @@ export class YardScreen implements Screen {
     const { bus } = this.game;
 
     bus.on('partRemoved', ({ vehicleId, partId, cash }) => {
+      this.sound?.play('detach');
       const pos = this.renderer.partWorldPos(partId) ?? this.renderer.padCenter();
       this.renderer.effects.sparks(pos.x, pos.y, '#ffd27a', 18);
       if (cash > 0) this.renderer.effects.text(pos.x, pos.y - 14, `+${money(cash)}`, '#ffe9a8', 18);
@@ -67,6 +75,7 @@ export class YardScreen implements Screen {
     });
 
     bus.on('vehicleDone', ({ xp }) => {
+      this.sound?.play('shred');
       const c = this.renderer.padCenter();
       this.renderer.effects.sparks(c.x, c.y, '#8fe0a0', 30);
       this.renderer.effects.text(c.x, c.y - 34, `Fertig!  +${Math.round(xp)} XP`, '#8fe0a0', 18);
@@ -79,7 +88,20 @@ export class YardScreen implements Screen {
     });
 
     // Every delivery bought sends a truck down the road - no teleportation.
-    bus.on('delivery', () => this.renderer.traffic.queueDelivery());
+    bus.on('delivery', () => {
+      this.renderer.traffic.queueDelivery();
+      this.sound?.play('engine', 0.7);
+    });
+
+    // Something new on the yard: dust cloud, then the model appears.
+    bus.on('built', ({ defId }) => {
+      const structure = this.renderer.buildings.current().find((s) => s.defId === defId);
+      const pos = structure
+        ? this.renderer.structureCenter(structure)
+        : this.renderer.padCenter();
+      this.renderer.effects.dust(pos.x, pos.y, 26);
+      this.sound?.play('build');
+    });
 
     bus.on('lotBought', ({ lotId }) => {
       this.renderer.map.sync(this.game.state);
@@ -93,6 +115,7 @@ export class YardScreen implements Screen {
     const pos = this.renderer.partWorldPos(partId);
     if (pos) this.renderer.effects.sparks(pos.x, pos.y, '#ffb545', 8);
     if (this.game.state.settings.haptics) haptic(8);
+    this.sound?.play('hit');
   }
 
   /** Tapping a structure offers to relocate it (GDD: frei platzierbar). */
@@ -116,6 +139,7 @@ export class YardScreen implements Screen {
 
   onEnter(): void {
     this.visible = true;
+    this.renderer.effects.budget = particleScale(this.game.state.settings);
     this.renderer.resize();
   }
 

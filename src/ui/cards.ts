@@ -5,6 +5,9 @@ import type { PurchasableDef } from '../data/types';
 import type { Game } from '../game/game';
 import { meetsRequirement, nextCost, requirementText } from '../game/stats';
 import { owned } from '../game/state';
+import { RARITY_COLOR, RARITY_ORDER } from '../data/ui';
+import { tooltip } from './components';
+import { openDetails } from './details';
 import { el } from './dom';
 
 /**
@@ -20,6 +23,17 @@ export function purchasableCard(game: Game, def: PurchasableDef, onBuy: () => vo
 
   const isMachine = def.category === 'machine';
   const card = el('div', `card${unlocked ? '' : ' locked'}`);
+  // Rarity colour on the left edge: machines climb tiers as they are levelled,
+  // so a mastered machine reads as legendary at a glance (GDD chapter 8).
+  if (isMachine && count > 0) {
+    const tier = RARITY_ORDER[Math.min(RARITY_ORDER.length - 1, Math.floor(count / 2))];
+    card.style.setProperty('--card-accent', RARITY_COLOR[tier]);
+  }
+  // Hold a card to open its detail window without buying anything.
+  if (unlocked && count > 0) {
+    tooltip(card, () => `${def.name} — halten für Details`);
+    card.addEventListener('dblclick', () => openDetails(game, def.id, onBuy));
+  }
 
   const icon = el('div', 'card-icon', def.icon);
   card.appendChild(icon);

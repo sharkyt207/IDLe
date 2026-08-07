@@ -30,8 +30,16 @@ export class Effects {
   private static readonly MAX_PARTICLES = 160;
   private static readonly MAX_TEXTS = 24;
 
+  /**
+   * Particle budget, 0…1 (GDD chapter 8: "reduzierte Partikeleffekte").
+   * Set by the shell from the accessibility settings; it is also the cheapest
+   * lever for a weak device.
+   */
+  budget = 1;
+
   sparks(x: number, y: number, color = '#ffb545', count = 12): void {
     if (this.particles.length > Effects.MAX_PARTICLES) return;
+    count = Math.max(1, Math.round(count * this.budget));
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 60 + Math.random() * 180;
@@ -51,6 +59,37 @@ export class Effects {
   text(x: number, y: number, text: string, color = '#ffe9a8', size = 26): void {
     if (this.texts.length > Effects.MAX_TEXTS) this.texts.shift();
     this.texts.push({ x, y, text, life: 1.1, maxLife: 1.1, color, size });
+  }
+
+  /**
+   * A dust cloud (GDD chapter 8: "Gebäude gebaut → Staubwolke → neues Modell
+   * erscheint"). Slower, heavier and greyer than sparks, so it reads as
+   * settling dust rather than as an explosion.
+   */
+  dust(x: number, y: number, count = 22): void {
+    if (this.particles.length > Effects.MAX_PARTICLES) return;
+    count = Math.max(1, Math.round(count * this.budget));
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 20 + Math.random() * 70;
+      const grey = 150 + Math.floor(Math.random() * 60);
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        // Dust drifts sideways and sinks; it does not shoot upwards.
+        vy: Math.sin(angle) * speed * 0.4 - 12,
+        life: 0.7 + Math.random() * 0.6,
+        maxLife: 1.3,
+        size: 3 + Math.random() * 5,
+        color: `rgb(${grey},${grey - 6},${grey - 14})`,
+      });
+    }
+  }
+
+  /** Live particle count. Exposed for the performance and effect tests. */
+  particleCount(): number {
+    return this.particles.length;
   }
 
   update(dt: number): void {

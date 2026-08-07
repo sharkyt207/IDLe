@@ -23,6 +23,7 @@ src/
     progress.ts    Forschung, Labor, Prestige-Türen, Schwierigkeitsrampe
     company.ts     Personal, Löhne, Prioritäten, Kennzahlen
     fleet.ts       Logistikfahrzeug-Klassen + Verkehrsregeln
+    ui.ts          Designtokens, Paletten, Themes, Seltenheitsfarben
     index.ts       Registry + Inhalts-Validierung
 
   core/          Infrastruktur ohne Spiellogik (Events, Formatierung, Zufall)
@@ -63,8 +64,18 @@ src/
     logistics.ts   sichtbarer Materialfluss auf den Förderstrecken
     environment.ts Tag/Nacht-Zyklus, Wetter, Atmosphäre
 
+  audio/         Sounddesign (GDD Kapitel 8), vollständig synthetisiert
+    sound.ts       Maschinen, Oberfläche, Musikbett - ohne ein einziges Asset
+
   render/        Zeichnen (Kamera, isometrische Modelle, Partikel)
-  ui/            DOM-Oberfläche (Shell, Screens, Tutorial, Modals)
+  ui/            DOM-Oberfläche (GDD Kapitel 8)
+    theme.ts       Themes und Barrierefreiheit als CSS-Variablen
+    components.ts  Designsystem: neun Komponenten, aus denen alles gebaut ist
+    hud.ts         HUD oben/links/rechts
+    details.ts     Detailfenster für Maschinen und Gebäude
+    app.ts         Shell: sechs Hauptbereiche, Loop, Autosave, Offline
+    screens/       yard · build · market · storage · trade · research
+                   staff · statistics · settings · hub
 ```
 
 Die Abhängigkeiten laufen nur in eine Richtung:
@@ -112,6 +123,10 @@ im passenden System.
 | Neuer Erfolg | `achievements.ts` | keiner, falls die Metrik existiert |
 | Neue **Art** von Freischaltbedingung | `types.ts` + `unlocks.ts` | ja, klein |
 | Neue Quelle dauerhafter Boni | `bonuses.ts` | ja, klein |
+| Neues Theme | `ui.ts` (`THEMES`) | keiner |
+| Neue Seltenheitsstufe | `ui.ts` + `types.ts` | keiner |
+| Neues Maschinengeräusch | `audio/sound.ts` (`SOUNDS`) | keiner |
+| Neuer Hauptbereich / Unterscreen | `app.ts` (eine Zeile) | keiner |
 | Neues Gebäudemodell | `models.ts` (Tabelleneintrag) | keiner |
 | Neue Maschine / Linie / Kraftwerk | `purchasables.ts` + Modell in `models.ts` | keiner |
 | Neue **Art** von Wirkung | `types.ts` + `stats.ts` + System | ja, klein |
@@ -247,9 +262,35 @@ zweite Verbindung gibt — deshalb hat der Hof eine Ringstraße.
 Transportaufträge gehören keinem Fahrzeug, sondern einer Warteschlange. Die Disposition gibt
 jeden Auftrag an die kleinste freie Klasse, die die Last trägt.
 
+## Die Oberfläche
+
+Neun Komponenten in `components.ts` tragen jeden Screen. Jede Farbe, jeder Radius, jeder
+Schatten und jede Animationsdauer steht in `data/ui.ts` und wird von `theme.ts` als CSS-Variable
+gesetzt. Ein Theme ist damit eine andere Zahlentabelle, kein zweites Stylesheet — und die
+Barrierefreiheits-Optionen fahren auf derselben Mechanik: Oberflächengröße ist eine
+Root-Schriftgröße, reduzierte Effekte ein Attribut, das die Stylesheet-Regeln lesen,
+Linkshänder-Modus eine gespiegelte Flex-Richtung.
+
+Die Navigationsleiste hat **sechs** Ziele. Zwei davon sind Hubs (Schrottplatz → Hof/Ausbau,
+Markt → Ankauf/Lager/Handel), damit die Leiste groß und daumenfreundlich bleibt, statt eine
+neunte gequetschte Registerkarte zu bekommen. Ein Hub darf seine ID mit einem seiner
+Unterscreens teilen; `App.select()` reicht die ID durch, sodass „Markt anzeigen" auch den
+Ankauf nach vorn holt.
+
+Sie wird außerdem nur neu gebaut, wenn sie anders aussehen würde. Vorher ersetzte jedes
+Fortschritts-Ereignis die Buttons unter dem Finger — auf einem echten Gerät sind das Tipps,
+die nicht ankommen.
+
+## Der Ton
+
+Vollständig synthetisiert: Oszillatoren und gefiltertes Rauschen, kein einziges Audio-Asset.
+Ein Schrottplatz ist Metall, Motoren und Hydraulik, und genau darin ist subtraktive Synthese
+gut. Die Aufrufstellen fragen nur nach `play('shred')`, nie nach einem Puffer — echte
+Aufnahmen können das später ersetzen, ohne dass Spielcode sich ändert.
+
 ## Leistung auf Mittelklasse-Geräten
 
-- Keine Laufzeit-Abhängigkeiten; Build ≈ 66 kB gzip.
+- Keine Laufzeit-Abhängigkeiten; Build ≈ 74 kB gzip (JS) + 4 kB CSS, keine Assets.
 - Canvas-Zeichnung aus Vektorformen, kein Asset-Laden; DPR auf 2 begrenzt.
 - Nur sichtbare Kacheln, Anlagen, Fahrzeuge und Pakete werden gezeichnet.
 - Animationen und Spawns pausieren, sobald der Hof nicht der aktive Screen ist.

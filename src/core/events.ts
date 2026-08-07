@@ -18,6 +18,8 @@ export interface GameEvents {
   delivery: { vehicleId: string };
   /** A plot was bought; the map grows and the camera visits it. */
   lotBought: { lotId: string };
+  /** Something was built or upgraded - dust cloud, then the new model. */
+  built: { defId: string };
   /** A collectible turned up while dismantling. */
   found: { collectibleId: string };
 }

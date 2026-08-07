@@ -1,4 +1,5 @@
 import type { GameState } from '../game/state';
+import { activeTheme, takePendingWeather } from '../ui/theme';
 
 /** A full day lasts 15 minutes (GDD chapter 3). */
 export const DAY_LENGTH = 15 * 60;
@@ -56,9 +57,22 @@ export class EnvironmentSystem {
     const world = state.world;
     world.dayTime = (world.dayTime + dt) % DAY_LENGTH;
 
+    // A theme change applies its weather immediately.
+    const pending = takePendingWeather();
+    if (pending) {
+      const forced = WEATHERS.find((w) => w.id === pending);
+      if (forced) {
+        world.weather = forced.id;
+        world.weatherLeft = forced.maxDuration;
+      }
+    }
+
     world.weatherLeft -= dt;
     if (world.weatherLeft <= 0) {
-      const next = pickWeather();
+      // A theme may pin the weather (GDD chapter 8: the winter skin has snow
+      // on the yard). Purely cosmetic - weather never touches production.
+      const forced = activeTheme().world.weather;
+      const next = forced ? (WEATHERS.find((w) => w.id === forced) ?? pickWeather()) : pickWeather();
       world.weather = next.id;
       world.weatherLeft = next.minDuration + Math.random() * (next.maxDuration - next.minDuration);
     }
